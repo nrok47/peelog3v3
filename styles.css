@@ -1,0 +1,297 @@
+/* ─────────────────────────────────────────────────────────────
+   จอมขมังเวทน้อย: ผีไทยป่วนเมือง — Design Tokens
+   ───────────────────────────────────────────────────────────── */
+
+:root {
+  /* Voids & shrines */
+  --void: #0a0612;
+  --shrine: #160a1d;
+  --shrine-2: #1f0e26;
+  --panel: #241430;
+  --panel-2: #2e1a3b;
+  --panel-hi: #3a2148;
+  --ink: #07040a;
+
+  /* Gold leaf — Thai temple */
+  --gold: #d4af37;
+  --gold-deep: #8a6a1e;
+  --gold-soft: #e8c764;
+  --gold-glow: #ffe08a;
+
+  /* Blood & spirit */
+  --blood: #c0392b;
+  --blood-deep: #6b1518;
+  --spirit: #9b5fc6;
+  --corruption: #c026d3;
+  --corruption-soft: #e879f9;
+
+  /* Bones */
+  --bone: #f4ecd8;
+  --bone-soft: #d8c9a0;
+  --bone-mute: #a89c7a;
+  --muted: rgba(244, 236, 216, 0.45);
+  --faint: rgba(244, 236, 216, 0.18);
+  --hairline: rgba(212, 175, 55, 0.22);
+  --hairline-strong: rgba(212, 175, 55, 0.45);
+
+  /* Elements (5: fire / wind / earth / water + occult) */
+  --el-fire: #ff5e3a;
+  --el-water: #5aa6e8;
+  --el-wind: #7dcfa0;
+  --el-earth: #c69850;
+  --el-occult: #c026d3;
+  /* legacy aliases */
+  --el-spirit: #b07cd4;
+  --el-curse: #c026d3;
+  --el-wood: #6ab050;
+
+  /* Tier */
+  --t-common: #9aa0a6;
+  --t-rare: #5fa6ff;
+  --t-epic: #b07cd4;
+  --t-legend: #ffb84a;
+  --t-mythic: #ff4a9e;
+
+  /* Type */
+  --f-display: "Bai Jamjuree", "Noto Serif Thai Looped", "Cinzel", serif;
+  --f-body: "IBM Plex Sans Thai Looped", "IBM Plex Sans Thai", "Inter", sans-serif;
+  --f-mono: "JetBrains Mono", "IBM Plex Mono", ui-monospace, monospace;
+}
+
+/* ───── Base screen frame ───── */
+.screen {
+  width: 390px;
+  height: 844px;
+  background: var(--void);
+  color: var(--bone);
+  font-family: var(--f-body);
+  font-size: 13px;
+  line-height: 1.35;
+  position: relative;
+  overflow: hidden;
+  letter-spacing: 0.005em;
+}
+
+.screen *,
+.screen *::before,
+.screen *::after {
+  box-sizing: border-box;
+}
+
+/* Scoped temple paper texture */
+.screen::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(ellipse 80% 60% at 20% 0%, rgba(155, 95, 198, 0.18), transparent 60%),
+    radial-gradient(ellipse 80% 60% at 100% 100%, rgba(192, 57, 43, 0.12), transparent 60%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Vignette */
+.screen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 110% 80% at 50% 50%, transparent 55%, rgba(0, 0, 0, 0.55) 100%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.screen > * {
+  position: relative;
+  z-index: 2;
+}
+
+/* ───── Common bits ───── */
+.eyebrow {
+  font-family: var(--f-mono);
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gold);
+  font-weight: 500;
+}
+
+.eyebrow-mute {
+  font-family: var(--f-mono);
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--bone-mute);
+}
+
+.thai-display {
+  font-family: var(--f-display);
+  font-weight: 700;
+  letter-spacing: -0.005em;
+}
+
+.num {
+  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.hairline {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--hairline-strong) 20%, var(--hairline-strong) 80%, transparent);
+}
+
+.hairline-v {
+  width: 1px;
+  background: linear-gradient(180deg, transparent, var(--hairline-strong) 20%, var(--hairline-strong) 80%, transparent);
+}
+
+/* ───── Buttons ───── */
+.btn {
+  background: var(--panel);
+  border: 1px solid var(--hairline);
+  color: var(--bone);
+  font-family: var(--f-body);
+  font-size: 12px;
+  padding: 8px 14px;
+  border-radius: 2px;
+  cursor: pointer;
+  letter-spacing: 0.02em;
+}
+
+.btn-gold {
+  background: linear-gradient(180deg, var(--gold-soft), var(--gold) 50%, var(--gold-deep));
+  border: 1px solid var(--gold-deep);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 2px 0 #4a3510;
+}
+
+.btn-ghost {
+  background: transparent;
+  border: 1px solid var(--hairline);
+}
+
+/* ───── Element chip ───── */
+.el-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--f-mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 3px 7px;
+  border-radius: 1px;
+  border: 1px solid currentColor;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.el-fire { color: var(--el-fire); }
+.el-water { color: var(--el-water); }
+.el-wind { color: var(--el-wind); }
+.el-earth { color: var(--el-earth); }
+.el-occult { color: var(--el-occult); }
+.el-spirit { color: var(--el-spirit); }
+.el-curse { color: var(--el-curse); }
+.el-wood { color: var(--el-wood); }
+
+/* ───── Bars (HP / GUTS / ATB) ───── */
+.bar {
+  position: relative;
+  height: 6px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid var(--hairline);
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  background: var(--bone);
+  position: relative;
+}
+
+.bar-fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.4), transparent 50%, rgba(0, 0, 0, 0.2));
+}
+
+.bar-hp .bar-fill { background: linear-gradient(180deg, #ff7066, var(--blood)); }
+.bar-guts .bar-fill { background: linear-gradient(180deg, var(--gold-soft), var(--gold)); }
+.bar-atb .bar-fill { background: linear-gradient(180deg, #b8e0ff, #5fa6ff); }
+.bar-mp .bar-fill { background: linear-gradient(180deg, #c4a3e6, var(--spirit)); }
+.bar-corruption .bar-fill { background: linear-gradient(90deg, var(--spirit), var(--corruption), #ff3da0); }
+
+/* Thai ornament frame corners (only on dedicated frame elements) */
+.frame-gold {
+  position: relative;
+  border: 1px solid var(--hairline-strong);
+  background: linear-gradient(180deg, var(--shrine-2), var(--shrine));
+}
+
+.frame-gold::before,
+.frame-gold::after {
+  content: "";
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border: 1px solid var(--gold);
+}
+
+.frame-gold::before {
+  top: -1px;
+  left: -1px;
+  border-right: none;
+  border-bottom: none;
+}
+
+.frame-gold::after {
+  bottom: -1px;
+  right: -1px;
+  border-left: none;
+  border-top: none;
+}
+
+/* ───── Status pill ───── */
+.pill {
+  font-family: var(--f-mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 1px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--hairline);
+}
+
+/* Tier badge color */
+.tier-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+/* Notch / status bar */
+.status-bar {
+  height: 44px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 0 24px 8px;
+  font-family: var(--f-mono);
+  font-size: 11px;
+  color: var(--bone);
+  font-weight: 600;
+}
+
+/* Subtle paper noise overlay using SVG */
+.noise {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.04;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='1'/></svg>");
+}

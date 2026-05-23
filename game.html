@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>จอมขมังเวทน้อย · Spirit Master</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bai+Jamjuree:wght@400;500;600;700&family=IBM+Plex+Sans+Thai+Looped:wght@300;400;500;600;700&family=IBM+Plex+Sans+Thai:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+
+  <style>
+    html, body {
+      margin: 0; padding: 0;
+      background: #07040a;
+      display: flex; flex-direction: column; align-items: center;
+      min-height: 100vh;
+    }
+    #shell { width: 390px; position: relative; }
+
+    /* ── Player HUD bar (top of game frame) */
+    .player-hud {
+      width: 390px;
+      background: linear-gradient(180deg, #160a1d, #0a0612);
+      border-bottom: 1px solid rgba(212,175,55,0.3);
+      padding: 6px 12px 5px;
+      display: flex; align-items: center; gap: 8px;
+      position: sticky; top: 0; z-index: 500;
+      box-sizing: border-box;
+    }
+    .player-hud .p-name {
+      font-family: "Bai Jamjuree", serif;
+      font-size: 12px; color: #ffe08a; font-weight: 700;
+      flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .player-hud .p-res {
+      display: flex; align-items: center; gap: 4px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px; color: #e879f9;
+    }
+    .player-hud .p-corruption {
+      width: 50px; height: 4px;
+      background: rgba(0,0,0,0.5);
+      border: 1px solid rgba(232,121,249,0.3);
+      position: relative; overflow: hidden;
+    }
+    .player-hud .p-corruption-fill {
+      position: absolute; left: 0; top: 0; height: 100%;
+      transition: width 0.4s;
+    }
+
+    /* ── Bottom nav bar */
+    .bottom-nav {
+      width: 390px;
+      background: #0a0612;
+      border-top: 1px solid rgba(212,175,55,0.2);
+      display: flex;
+      position: sticky; bottom: 0; z-index: 500;
+      box-sizing: border-box;
+    }
+    .bottom-nav button {
+      flex: 1; background: none; border: none;
+      color: #a89c7a; padding: 8px 4px 6px;
+      cursor: pointer; display: flex; flex-direction: column;
+      align-items: center; gap: 2px; font-family: inherit;
+      font-size: 8px; letter-spacing: 0.05em;
+      border-top: 2px solid transparent;
+      transition: all 0.15s;
+    }
+    .bottom-nav button.active {
+      color: #ffe08a;
+      border-top-color: #d4af37;
+      background: rgba(212,175,55,0.08);
+    }
+    .bottom-nav button span.icon { font-size: 16px; line-height: 1; }
+
+    /* ── Loading skeleton */
+    .loading-screen {
+      width: 390px; height: 844px;
+      background: #0a0612;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 16px;
+    }
+    .loading-ring {
+      width: 48px; height: 48px;
+      border: 2px solid rgba(212,175,55,0.2);
+      border-top-color: #d4af37;
+      border-radius: 50%;
+      will-change: transform;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Dev mode mini nav (collapsible) */
+    .dev-bar {
+      width: 390px; background: #100818;
+      border-bottom: 1px solid rgba(232,121,249,0.2);
+      padding: 4px 6px; display: flex; gap: 3px; flex-wrap: wrap;
+      box-sizing: border-box;
+    }
+    .dev-bar button {
+      background: rgba(0,0,0,0.4); border: 1px solid rgba(232,121,249,0.2);
+      color: #a89c7a; font-family: "JetBrains Mono", monospace;
+      font-size: 8px; padding: 2px 6px; cursor: pointer; border-radius: 2px;
+    }
+    .dev-bar button.active { border-color: #e879f9; color: #e879f9; }
+    .dev-bar .dev-label { color: rgba(232,121,249,0.3); font-size: 8px;
+      font-family: "JetBrains Mono", monospace; padding: 2px 3px; }
+
+    @media (max-width: 430px) {
+      #shell, .player-hud, .bottom-nav, .dev-bar, .loading-screen { width: 100vw; }
+    }
+  </style>
+
+  <!-- Supabase + React -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin></script>
+</head>
+<body>
+  <div id="shell"></div>
+
+  <!-- DB layer -->
+  <script src="db/ghost-data.js"></script>
+  <script src="../js/systems/battle_engine.js"></script>
+  <script src="db/supabase.js"></script>
+  <script src="db/seed.js"></script>
+  <script src="db/game-state.js"></script>
+
+  <!-- Screens -->
+  <script type="text/babel" src="chibi.jsx"></script>
+  <script type="text/babel" src="battle.jsx"></script>
+  <script type="text/babel" src="spirit-detail.jsx"></script>
+  <script type="text/babel" src="roster-map.jsx"></script>
+  <script type="text/babel" src="element-codex.jsx"></script>
+  <script type="text/babel" src="forge.jsx"></script>
+  <script type="text/babel" src="adventure.jsx"></script>
+  <script type="text/babel" src="skill-tree.jsx"></script>
+  <script type="text/babel" src="amulet.jsx"></script>
+  <script type="text/babel" src="evolution.jsx"></script>
+  <script type="text/babel" src="corruption-ending.jsx"></script>
+  <script type="text/babel" src="battle-live.jsx"></script>
+  <script type="text/babel" src="roster-live.jsx"></script>
+  <script type="text/babel" src="spirit-detail-live.jsx"></script>
+  <script type="text/babel" src="map-live.jsx"></script>
+  <script type="text/babel" src="login.jsx"></script>
+
+  <!-- Game Shell -->
+  <script type="text/babel">
+    // ── Nav config
+    const BOTTOM_NAV = [
+      { id: 'battle',     icon: '⚔️',  label: 'ต่อสู้'   },
+      { id: 'roster',     icon: '👻',  label: 'ผี'       },
+      { id: 'map',        icon: '🗺️',  label: 'แผนที่'   },
+      { id: 'forge-frame',icon: '⚒️',  label: 'โรงหลอม' },
+      { id: 'ending',     icon: '🔮',  label: 'บทจบ'     },
+    ];
+    const DEV_NAV = [
+      'battle','detail','roster','map','adventure',
+      'codex','forge-frame','forge-mass','skill-tree','amulet','evolution','ending'
+    ];
+
+    // ── Player HUD
+    function PlayerHUD({ gs, screen, onNav }) {
+      if (!gs) return null;
+      const { player, save } = gs;
+      const corruption = save?.corruption_score ?? 0;
+      const corruptionCol = corruption < 31 ? '#7df096' : corruption < 70 ? '#e8c764' : '#e879f9';
+
+      return (
+        <div className="player-hud">
+          <div style={{ display:'flex', flexDirection:'column', flex:1, minWidth:0 }}>
+            <div className="p-name">{player.title || 'จอมขมังเวท'} · {player.username}</div>
+            <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:2 }}>
+              <span style={{ fontFamily:'var(--f-mono)', fontSize:9, color:'var(--bone-mute)' }}>
+                บท {save?.chapter ?? 1} · zone {save?.zone_id?.replace('zone_','#') ?? '#1'}
+              </span>
+            </div>
+          </div>
+
+          {/* Spirit Dust */}
+          <div style={{ textAlign:'right' }}>
+            <div className="p-res">
+              <span style={{ fontSize:10 }}>◇</span>
+              <span>{(player.spirit_dust || 0).toLocaleString()}</span>
+            </div>
+            <div style={{ fontFamily:'var(--f-mono)', fontSize:7, color:'var(--bone-mute)', marginTop:1 }}>
+              Spirit Dust
+            </div>
+          </div>
+
+          {/* Corruption bar */}
+          <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:2 }}>
+            <div className="p-corruption">
+              <div className="p-corruption-fill"
+                style={{ width: corruption + '%', background: corruptionCol, opacity:0.8 }} />
+            </div>
+            <div style={{ fontFamily:'var(--f-mono)', fontSize:7, color: corruptionCol }}>
+              {corruption}%
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ── Bottom navigation
+    function BottomNav({ screen, onNav }) {
+      return (
+        <div className="bottom-nav">
+          {BOTTOM_NAV.map(n => (
+            <button key={n.id} onClick={() => onNav(n.id)}
+              className={screen === n.id ? 'active' : ''}>
+              <span className="icon">{n.icon}</span>
+              {n.label}
+            </button>
+          ))}
+        </div>
+      );
+    }
+
+    // ── Dev nav (collapsible, top)
+    function DevBar({ screen, onNav, visible, onToggle }) {
+      return (
+        <div>
+          <div style={{ width:390, background:'#100818', borderBottom:'1px solid rgba(232,121,249,0.15)',
+            padding:'3px 6px', display:'flex', alignItems:'center', gap:4,
+            fontFamily:'var(--f-mono)', fontSize:8, boxSizing:'border-box' }}>
+            <span style={{ color:'rgba(232,121,249,0.4)' }}>DEV</span>
+            <button onClick={onToggle} style={{ background:'none', border:'1px solid rgba(232,121,249,0.3)',
+              color:'#e879f9', padding:'1px 6px', cursor:'pointer', fontFamily:'inherit', fontSize:8 }}>
+              {visible ? '▲ ซ่อน' : '▼ แสดง nav'}
+            </button>
+            <span style={{ marginLeft:'auto', color:'rgba(255,255,255,0.2)' }}>
+              {screen}
+            </span>
+          </div>
+          {visible && (
+            <div className="dev-bar">
+              {DEV_NAV.map(id => (
+                <button key={id} onClick={() => onNav(id)}
+                  className={screen === id ? 'active' : ''}>
+                  {id}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ── Loading screen
+    function LoadingScreen({ text = 'กำลังโหลดวิญญาณ...' }) {
+      return (
+        <div className="loading-screen">
+          <div className="loading-ring" />
+          <div style={{ fontFamily:'var(--f-mono)', fontSize:11, color:'var(--bone-mute)', letterSpacing:0.15 }}>
+            {text}
+          </div>
+        </div>
+      );
+    }
+
+    // ── Error Boundary
+    class ErrorBoundary extends React.Component {
+      constructor(props) { super(props); this.state = { error:null }; }
+      static getDerivedStateFromError(e) { return { error:e }; }
+      componentDidCatch(e,info) { console.error('Screen error:', e, info); }
+      render() {
+        if (this.state.error) {
+          return (
+            <div style={{ padding:20, background:'#0a0612', minHeight:200,
+              display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:12 }}>
+              <div style={{ fontSize:24 }}>⚠</div>
+              <div style={{ fontFamily:'var(--f-mono)', fontSize:11, color:'#e879f9', textAlign:'center' }}>
+                {this.state.error.message}
+              </div>
+              <button onClick={() => this.setState({error:null})} style={{
+                background:'rgba(232,121,249,0.15)', border:'1px solid #e879f9',
+                color:'#e879f9', fontFamily:'var(--f-mono)', fontSize:10,
+                padding:'6px 16px', cursor:'pointer' }}>
+                ↻ Retry
+              </button>
+            </div>
+          );
+        }
+        return this.props.children;
+      }
+    }
+
+    // ── Screen registry (live versions)
+    function renderScreen(id) {
+      switch(id) {
+        case 'battle':      return <LiveBattleScreen />;
+        case 'roster':      return <LiveRosterScreen />;
+        case 'detail':      return <LiveSpiritDetailScreen />;
+        case 'map':         return <LiveMapScreen />;
+        case 'adventure':   return <AdventureScreen />;
+        case 'codex':       return <ElementCodexScreen />;
+        case 'forge-frame': return <ForgeEnhancementScreen />;
+        case 'forge-mass':  return <ForgeRerollScreen />;
+        case 'skill-tree':  return <SkillTreeScreen />;
+        case 'amulet':      return <AmuletScreen />;
+        case 'evolution':   return <EvolutionScreen />;
+        case 'ending':      return <CorruptionEndingScreen />;
+        default:            return <LiveBattleScreen />;
+      }
+    }
+
+    // ══════════════════════════════════════════
+    //  MAIN APP
+    // ══════════════════════════════════════════
+    function App() {
+      const [authState,       setAuthState]       = React.useState('loading');
+      const [screen,          setScreen]          = React.useState('battle');
+      const [gs,              setGs]              = React.useState(null);
+      const [devOpen,         setDevOpen]         = React.useState(false);
+      const [tick,            setTick]            = React.useState(0);
+      const [selectedGhostId, setSelectedGhostId] = React.useState(null);
+      const [navStack,        setNavStack]        = React.useState([]);
+
+      // ── Register GS refresh callback
+      React.useEffect(() => {
+        window._gsRefresh = () => setTick(t => t + 1);
+        return () => { window._gsRefresh = null; };
+      }, []);
+
+      // ── Check session on mount
+      React.useEffect(() => {
+        SpiritDB.Auth.getSession().then(async session => {
+          if (session) {
+            const data = await loadGameState();
+            setGs(data);
+            setAuthState(data ? 'game' : 'login');
+          } else {
+            setAuthState('login');
+          }
+        });
+      }, []);
+
+      // ── Listen to auth changes (logout etc.)
+      React.useEffect(() => {
+        const { data: { subscription } } = SpiritDB.db.auth.onAuthStateChange(async (event, session) => {
+          if (event === 'SIGNED_OUT') {
+            window.GS = null;
+            setGs(null);
+            setAuthState('login');
+          }
+        });
+        return () => subscription.unsubscribe();
+      }, []);
+
+      // ── Expose goTo + goBack globally (with params support)
+      React.useEffect(() => {
+        window.goTo = (s, params = {}) => {
+          if (params.ghostId) {
+            window.selectedGhostId = params.ghostId;
+            setSelectedGhostId(params.ghostId);
+          }
+          setNavStack(prev => [...prev.slice(-9), screen]);
+          setScreen(s);
+          window.scrollTo(0, 0);
+        };
+        window.goBack = () => {
+          setNavStack(prev => {
+            if (prev.length === 0) return prev;
+            const stack = [...prev];
+            const prevScreen = stack.pop();
+            setScreen(prevScreen);
+            window.scrollTo(0, 0);
+            return stack;
+          });
+        };
+      }, [screen]);
+
+      // ── Sync gs from window.GS when tick changes
+      React.useEffect(() => {
+        if (window.GS) setGs({ ...window.GS });
+      }, [tick]);
+
+      async function handleLogin() {
+        const data = await loadGameState();
+        setGs(data);
+        setAuthState(data ? 'game' : 'login');
+      }
+
+      async function handleLogout() {
+        await SpiritDB.Auth.signOut();
+      }
+
+      // ── Render states
+      if (authState === 'loading') return <LoadingScreen />;
+      if (authState === 'login')   return <LoginScreen onLogin={handleLogin} />;
+
+      return (
+        <div>
+          {/* Dev bar */}
+          <DevBar screen={screen} onNav={s => { setScreen(s); window.scrollTo(0,0); }}
+            visible={devOpen} onToggle={() => setDevOpen(v => !v)} />
+
+          {/* Player HUD */}
+          <PlayerHUD gs={gs} screen={screen} onNav={setScreen} />
+
+          {/* Screen content — wrapped in error boundary */}
+          <ErrorBoundary key={screen}>
+            <React.Suspense fallback={<LoadingScreen text="โหลดหน้า..." />}>
+              {renderScreen(screen)}
+            </React.Suspense>
+          </ErrorBoundary>
+
+          {/* Bottom nav */}
+          <BottomNav screen={screen} onNav={s => { setScreen(s); window.scrollTo(0,0); }} />
+
+          {/* Logout button (dev) */}
+          {devOpen && (
+            <div style={{ width:390, padding:'6px 8px', background:'#100818',
+              borderTop:'1px solid rgba(232,121,249,0.15)', display:'flex',
+              justifyContent:'space-between', alignItems:'center',
+              fontFamily:'var(--f-mono)', fontSize:9, color:'var(--bone-mute)',
+              boxSizing:'border-box' }}>
+              <span>👤 {gs?.player?.username}</span>
+              <button onClick={handleLogout} style={{ background:'rgba(192,38,211,0.15)',
+                border:'1px solid rgba(192,38,211,0.4)', color:'#e879f9',
+                fontFamily:'inherit', fontSize:9, padding:'3px 10px', cursor:'pointer' }}>
+                logout
+              </button>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ── Boot: mount ตรงนี้เลย
+    // Babel process scripts ตามลำดับ — ถึงบรรทัดนี้แปลว่า
+    // ทุก component ด้านบนพร้อมแล้ว (chibi, battle, login ฯลฯ)
+    (function mount() {
+      const el = document.getElementById('shell');
+      if (!el) { setTimeout(mount, 50); return; }
+      try {
+        ReactDOM.createRoot(el).render(<App />);
+      } catch(e) {
+        el.innerHTML = '<div style="color:#e879f9;font-family:monospace;padding:20px">Error: ' + e.message + '</div>';
+        console.error('Mount error:', e);
+      }
+    })();
+  </script>
+</body>
+</html>
