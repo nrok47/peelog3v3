@@ -9,7 +9,7 @@ type Tab = 'core' | 'frame' | 'mass' | 'skills';
 
 export default function SpiritDetail() {
   const { id } = useParams<{ id: string }>();
-  const { ghosts, updateGhost, player } = useGameStore();
+  const { ghosts, team, updateGhost, player, setTeam } = useGameStore();
 
   const [tab, setTab] = useState<Tab>('core');
   const [msg, setMsg] = useState('');
@@ -26,6 +26,30 @@ export default function SpiritDetail() {
 
   const stats = ghost.stats ?? def.baseStats;
   const frame = ghost.frame ?? { enhancement: 0, base_def: def.baseStats.def, base_spr: def.baseStats.spr, sockets: [] };
+
+  const teamIds = team.map(g => g.id);
+  const inTeam = teamIds.includes(ghost.id);
+
+  function handleToggleTeam() {
+    if (inTeam) {
+      // ถอดออก
+      const newSlots = team
+        .filter(g => g.id !== ghost!.id)
+        .map((g, i) => ({ ghostId: g.id, slot: i }));
+      setTeam(newSlots);
+      setMsg('ถอดออกจากทีมแล้ว');
+    } else {
+      if (team.length >= 3) {
+        setMsg('ทีมเต็มแล้ว (3/3) — ถอดผีออกก่อน');
+        setTimeout(() => setMsg(''), 2500);
+        return;
+      }
+      const newSlots = [...team, ghost!].map((g, i) => ({ ghostId: g.id, slot: i }));
+      setTeam(newSlots);
+      setMsg(`✅ เพิ่ม ${ghost!.nickname || def.nameTh} เข้าทีมแล้ว`);
+    }
+    setTimeout(() => setMsg(''), 2500);
+  }
 
   async function handleEnhanceFrame() {
     if (!ghost) return;
@@ -84,6 +108,30 @@ export default function SpiritDetail() {
           </div>
           <div className="label-sm">Level</div>
         </div>
+      </div>
+
+      {/* Team toggle button */}
+      <div style={{ padding: '0 16px 12px' }}>
+        <button
+          type="button"
+          onClick={handleToggleTeam}
+          style={{
+            width: '100%',
+            padding: '10px',
+            border: inTeam ? '1.5px solid rgba(245,197,24,0.5)' : '1.5px solid rgba(255,255,255,0.15)',
+            borderRadius: 10,
+            background: inTeam
+              ? 'linear-gradient(135deg, rgba(245,197,24,0.15), rgba(245,197,24,0.05))'
+              : 'rgba(255,255,255,0.05)',
+            color: inTeam ? 'var(--gold)' : 'var(--text-light)',
+            fontWeight: 700,
+            fontSize: 14,
+            cursor: 'pointer',
+            transition: 'all 0.15s',
+          }}
+        >
+          {inTeam ? '⚔️ อยู่ในทีมแล้ว — กดเพื่อถอดออก' : `➕ เพิ่มเข้าทีม (${team.length}/3)`}
+        </button>
       </div>
 
       {/* XP bar */}
