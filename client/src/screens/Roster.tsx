@@ -7,13 +7,35 @@ import ScreenHeader from '../components/ScreenHeader';
 import BottomNav from '../components/BottomNav';
 
 const EL_FILTERS = ['ทั้งหมด', 'fire', 'water', 'wood', 'earth', 'metal', 'dark', 'light'];
+const SUMMON_COST = 50;
+const GHOST_POOL = Object.keys(GHOST_REG);
 
 export default function Roster() {
   const navigate = useNavigate();
-  const { ghosts, team } = useGameStore();
+  const { ghosts, team, player, summonGhost } = useGameStore();
 
   const [elFilter, setElFilter] = useState('ทั้งหมด');
   const [sort, setSort] = useState<'level' | 'bond' | 'element'>('level');
+  const [showSummon, setShowSummon] = useState(false);
+  const [summoning, setSummoning] = useState(false);
+  const [summonResult, setSummonResult] = useState<{ ghostType: string } | null>(null);
+  const [summonErr, setSummonErr] = useState('');
+
+  async function handleSummon() {
+    if (summoning) return;
+    setSummoning(true);
+    setSummonErr('');
+    setSummonResult(null);
+    try {
+      const ghostType = GHOST_POOL[Math.floor(Math.random() * GHOST_POOL.length)];
+      const ghost = await summonGhost(ghostType, SUMMON_COST);
+      setSummonResult({ ghostType: ghost.ghost_type });
+    } catch (e: unknown) {
+      setSummonErr(e instanceof Error ? e.message : 'เกิดข้อผิดพลาด');
+    } finally {
+      setSummoning(false);
+    }
+  }
 
   const filtered = ghosts
     .filter(g => elFilter === 'ทั้งหมด' || GHOST_REG[g.ghost_type]?.element === elFilter)
@@ -26,16 +48,114 @@ export default function Roster() {
 
   const teamIds = new Set(team.map(g => g.id));
 
+  const dust = player?.spirit_dust ?? 0;
+
   return (
     <div className="screen fade-in">
       <ScreenHeader
         title={`👻 วิญญาณ (${ghosts.length})`}
         right={
-          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-            ทีม {team.length}/3
-          </span>
+          <button
+            type="button"
+            onClick={() => { setSummonResult(null); setSummonErr(''); setShowSummon(true); }}
+            style={{
+              background: 'linear-gradient(135deg, #7c3aed, #a855f7)',
+              border: 'none', borderRadius: 8, color: '#fff',
+              fontSize: 12, fontWeight: 700, padding: '5px 10px', cursor: 'pointer',
+            }}
+          >
+            ✨ เชิญผี
+          </button>
         }
       />
+
+      {/* Summon Modal Overlay */}
+      {showSummon && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 100,
+            background: 'rgba(0,0,0,0.7)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+          onClick={() => setShowSummon(false)}
+        >
+          <div
+            style={{
+              background: 'var(--bg-card)', border: '1px solid rgba(168,85,247,0.4)',
+              borderRadius: 16, padding: 24, color: 'var(--text-main)',
+              width: 'min(340px, 90vw)', textAlign: 'center',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ fontSize: 28, marginBottom: 4 }}>🔮 เชิญวิญญาณ</div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>
+              สุ่ม 1 ผีจากรายการทั้งหมด
+            </div>
+
+            <div style={{
+              background: 'rgba(124,58,237,0.1)', borderRadius: 10,
+              padding: '10px 16px', marginBottom: 16,
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            }}>
+              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>ฝุ่นวิญญาณของคุณ</span>
+              <span style={{ fontSize: 16, fontWeight: 700, color: dust >= SUMMON_COST ? 'var(--gold)' : 'var(--red)' }}>
+                🌀 {dust}
+              </span>
+            </div>
+
+            {summonResult ? (
+              <div style={{
+                background: 'linear-gradient(135deg, rgba(124,58,237,0.2), rgba(168,85,247,0.1))',
+                border: '1px solid rgba(168,85,247,0.5)', borderRadius: 12,
+                padding: '20px 16px', marginBottom: 16,
+              }}>
+                <div style={{ fontSize: 48, marginBottom: 8 }}>
+                  {GHOST_REG[summonResult.ghostType]?.emoji ?? '👻'}
+                </div>
+                <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 4 }}>
+                  {GHOST_REG[summonResult.ghostType]?.nameTh ?? summonResult.ghostType}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>ปรากฏกาย!</div>
+              </div>
+            ) : (
+              <div style={{
+                background: 'rgba(255,255,255,0.03)', borderRadius: 12,
+                padding: '20px 16px', marginBottom: 16, fontSize: 40,
+              }}>❓</div>
+            )}
+
+            {summonErr && (
+              <div style={{ color: 'var(--red)', fontSize: 13, marginBottom: 12 }}>
+                ⚠️ {summonErr}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ flex: 1 }}
+                onClick={() => setShowSummon(false)}
+              >
+                ปิด
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                style={{
+                  flex: 2,
+                  opacity: dust < SUMMON_COST ? 0.5 : 1,
+                  cursor: dust < SUMMON_COST ? 'not-allowed' : 'pointer',
+                }}
+                disabled={dust < SUMMON_COST || summoning}
+                onClick={handleSummon}
+              >
+                {summoning ? 'กำลังเชิญ...' : `✨ เชิญ (${SUMMON_COST} 🌀)`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="screen-content">
         {/* Filter chips */}

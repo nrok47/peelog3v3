@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { Ghost, GameState } from '../types';
-import { Auth, GhostService, SaveService } from '../db/supabase';
+import { db, Auth, GhostService, SaveService } from '../db/supabase';
 
 interface GameStore extends GameState {
   // Actions
@@ -11,6 +11,7 @@ interface GameStore extends GameState {
   updateGhost: (ghostId: string, changes: Partial<Ghost>) => Promise<void>;
   setTeam: (slots: { ghostId: string; slot: number }[]) => void;
   addSpiritDust: (amount: number) => void;
+  summonGhost: (ghostType: string, cost: number) => Promise<Ghost>;
 }
 
 export const useGameStore = create<GameStore>((set, get) => ({
@@ -82,5 +83,27 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set(state => ({
       player: state.player ? { ...state.player, spirit_dust: state.player.spirit_dust + amount } : null,
     }));
+  },
+
+  async summonGhost(ghostType, cost) {
+    const { player } = get();
+    if (!player) throw new Error('Not logged in');
+    if (player.spirit_dust < cost) throw new Error('ฝุ่นวิญญาณไม่พอ');
+
+    // Deduct dust
+    const { error: dustErr } = await db
+      .from('players')
+      .update({ spirit_dust: player.spirit_dust - cost })
+      .eq('id', player.id);
+    if (dustErr) throw dustErr;
+
+    const newGhost = await GhostService.add(player.id, ghostType);
+
+    set(state => ({
+      player: state.player ? { ...state.player, spirit_dust: state.player.spirit_dust - cost } : null,
+      ghosts: [...state.ghosts, newGhost],
+    }));
+
+    return newGhost;
   },
 }));
