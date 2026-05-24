@@ -13,7 +13,12 @@ interface GameStore extends GameState {
   setTeam: (slots: { ghostId: string; slot: number }[]) => void;
   addSpiritDust: (amount: number) => void;
   summonGhost: (ghostType: string, cost: number) => Promise<Ghost>;
+  passiveDustEarned: number;  // dust earned this session (for notification)
 }
+
+const DUST_PER_HOUR = 30;
+const MAX_OFFLINE_HOURS = 8;
+const SYNC_KEY = 'spirit_master_dust_sync';
 
 export const useGameStore = create<GameStore>((set, get) => ({
   player:    null,
@@ -22,11 +27,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
   save:      null,
   isLoading: false,
   isAuth:    false,
+  passiveDustEarned: 0,
 
   async loadAll() {
     set({ isLoading: true });
     try {
-      const player = await Auth.getPlayer();
+      let player = await Auth.getPlayer();
       if (!player) { set({ isLoading: false, isAuth: false }); return; }
 
       const [ghosts, save] = await Promise.all([
@@ -38,7 +44,24 @@ export const useGameStore = create<GameStore>((set, get) => ({
         .filter(g => g.is_in_team)
         .sort((a, b) => (a.team_slot ?? 0) - (b.team_slot ?? 0));
 
-      set({ player, ghosts, team, save, isAuth: true, isLoading: false });
+      // ── Passive dust regen ────────────────────────────────────
+      let passiveDustEarned = 0;
+      const now = Date.now();
+      const lastSync = parseInt(localStorage.getItem(SYNC_KEY) ?? '0', 10);
+      if (lastSync > 0) {
+        const elapsedHours = Math.min((now - lastSync) / 3_600_000, MAX_OFFLINE_HOURS);
+        passiveDustEarned = Math.floor(elapsedHours * DUST_PER_HOUR);
+      }
+      localStorage.setItem(SYNC_KEY, String(now));
+
+      if (passiveDustEarned > 0) {
+        const newDust = player.spirit_dust + passiveDustEarned;
+        await db.from('players').update({ spirit_dust: newDust }).eq('id', player.id);
+        player = { ...player, spirit_dust: newDust };
+      }
+      // ─────────────────────────────────────────────────────────
+
+      set({ player, ghosts, team, save, isAuth: true, isLoading: false, passiveDustEarned });
     } catch {
       set({ isLoading: false, isAuth: false });
     }

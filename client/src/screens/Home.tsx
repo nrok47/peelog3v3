@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { GHOST_REG } from '../data/ghosts';
@@ -17,13 +18,50 @@ const MENU = [
 
 export default function Home() {
   const navigate = useNavigate();
-  const { player, team, save, signOut } = useGameStore();
+  const { player, team, save, signOut, passiveDustEarned } = useGameStore();
+  const [showDustNotif, setShowDustNotif] = useState(false);
+
+  useEffect(() => {
+    if (passiveDustEarned > 0) {
+      setShowDustNotif(true);
+      const t = setTimeout(() => setShowDustNotif(false), 4000);
+      return () => clearTimeout(t);
+    }
+  }, [passiveDustEarned]);
 
   const corruption = save?.corruption_score ?? 0;
   const chapter    = save?.chapter ?? 1;
 
   return (
     <div className="screen fade-in">
+      {/* Passive dust notification */}
+      {showDustNotif && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 200,
+          background: 'linear-gradient(135deg, #7c3aed, #a855f7)',
+          padding: '12px 16px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          animation: 'popIn 0.3s ease-out',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 22 }}>🌀</span>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 14, color: '#fff' }}>
+                ได้รับฝุ่นวิญญาณ offline!
+              </div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)' }}>
+                +{passiveDustEarned} ฝุ่นวิญญาณ (30/ชม.)
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowDustNotif(false)}
+            style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', fontSize: 18, cursor: 'pointer' }}
+          >✕</button>
+        </div>
+      )}
+
       {/* Header */}
       <div style={{
         background: 'linear-gradient(180deg, #0d1a2e 0%, var(--bg-base) 100%)',
