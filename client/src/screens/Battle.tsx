@@ -53,19 +53,21 @@ function getSkillBonuses(ghost: Ghost) {
 }
 
 function makeCombatant(ghost: Ghost, isPlayer: boolean): Combatant {
-  const def  = GHOST_REG[ghost.ghost_type];
-  const base = ghost.stats ?? def?.baseStats ?? { hp: 1000, str: 30, mag: 20, def: 20, spr: 20, spd: 20 };
+  const def      = GHOST_REG[ghost.ghost_type];
+  const fallback = def?.baseStats ?? { hp: 1000, str: 30, mag: 20, def: 20, spr: 20, spd: 20 };
+  const saved    = ghost.stats ?? {};
   const { statBonus, gutsMultiplier, atbStart, regenPct } = isPlayer
     ? getSkillBonuses(ghost)
     : { statBonus: { hp: 0, str: 0, mag: 0, def: 0, spr: 0, spd: 0 }, gutsMultiplier: 1, atbStart: 0, regenPct: 0 };
 
+  // merge saved stats with baseStats fallback per-field, prevents NaN when DB stores partial JSON
   const boostedStats: GhostStats = {
-    hp:  base.hp  + statBonus.hp,
-    str: base.str + statBonus.str,
-    mag: base.mag + statBonus.mag,
-    def: base.def + statBonus.def,
-    spr: base.spr + statBonus.spr,
-    spd: base.spd + statBonus.spd,
+    hp:  (saved.hp  ?? fallback.hp)  + statBonus.hp,
+    str: (saved.str ?? fallback.str) + statBonus.str,
+    mag: (saved.mag ?? fallback.mag) + statBonus.mag,
+    def: (saved.def ?? fallback.def) + statBonus.def,
+    spr: (saved.spr ?? fallback.spr) + statBonus.spr,
+    spd: (saved.spd ?? fallback.spd) + statBonus.spd,
   };
   return {
     ghost, currentHp: boostedStats.hp, maxHp: boostedStats.hp,
@@ -301,8 +303,12 @@ export default function Battle() {
                 }}>
                   <Chibi emoji={def.emoji} element={def.element} size={42} />
                   <div style={{ fontSize: 10, fontWeight: 700, textAlign: 'center' }}>{def.nameTh}</div>
+                  <div style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'JetBrains Mono, monospace' }}>
+                    {com.currentHp}/{com.maxHp}
+                  </div>
                   <div className="bar-track thin" style={{ width: '100%' }}>
-                    <div className="bar-fill bar-hp" style={{ width: `${(com.currentHp / com.maxHp) * 100}%` }} />
+                    <div className={`bar-fill ${(com.currentHp / com.maxHp) < 0.3 ? 'bar-hp-low' : 'bar-hp'}`}
+                      style={{ width: `${(com.currentHp / com.maxHp) * 100}%` }} />
                   </div>
                   <div className="bar-track thin" style={{ width: '100%' }}>
                     <div className="bar-fill bar-atb" style={{ width: `${com.atb}%` }} />
