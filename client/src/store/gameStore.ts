@@ -15,7 +15,8 @@ interface GameStore extends GameState {
   summonGhost: (ghostType: string, cost: number) => Promise<Ghost>;
   addBattleRewards: (playerGhostIds: string[], avgEnemyLevel: number) => Promise<{ expGained: number; levelUps: string[]; dustGained: number }>;
   applyAdventureChoice: (eventId: string, choiceId: string, corruptionDelta: number, dustReward: number, bondGain: number) => Promise<void>;
-  passiveDustEarned: number;  // dust earned this session (for notification)
+  passiveDustEarned: number;
+  passiveRate: number;        // dust/hour current rate (bond-based)
 }
 
 const DUST_PER_HOUR = 30;
@@ -30,6 +31,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   isLoading: false,
   isAuth:    false,
   passiveDustEarned: 0,
+  passiveRate: 30,
 
   async loadAll() {
     set({ isLoading: true });
@@ -46,13 +48,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
         .filter(g => g.is_in_team)
         .sort((a, b) => (a.team_slot ?? 0) - (b.team_slot ?? 0));
 
-      // ── Passive dust regen ────────────────────────────────────
+      // ── Passive dust regen (bond-based rate) ─────────────────
+      const avgBond = team.length > 0
+        ? Math.floor(team.reduce((s, g) => s + g.bond, 0) / team.length)
+        : 0;
+      const passiveRate = DUST_PER_HOUR + Math.floor(avgBond / 10);
+
       let passiveDustEarned = 0;
       const now = Date.now();
       const lastSync = parseInt(localStorage.getItem(SYNC_KEY) ?? '0', 10);
       if (lastSync > 0) {
         const elapsedHours = Math.min((now - lastSync) / 3_600_000, MAX_OFFLINE_HOURS);
-        passiveDustEarned = Math.floor(elapsedHours * DUST_PER_HOUR);
+        passiveDustEarned = Math.floor(elapsedHours * passiveRate);
       }
       localStorage.setItem(SYNC_KEY, String(now));
 
@@ -63,7 +70,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }
       // ─────────────────────────────────────────────────────────
 
-      set({ player, ghosts, team, save, isAuth: true, isLoading: false, passiveDustEarned });
+      set({ player, ghosts, team, save, isAuth: true, isLoading: false, passiveDustEarned, passiveRate });
     } catch {
       set({ isLoading: false, isAuth: false });
     }

@@ -18,7 +18,7 @@ const MENU = [
 
 export default function Home() {
   const navigate = useNavigate();
-  const { player, team, save, signOut, passiveDustEarned } = useGameStore();
+  const { player, team, save, signOut, passiveDustEarned, passiveRate } = useGameStore();
   const [showDustNotif, setShowDustNotif] = useState(false);
 
   useEffect(() => {
@@ -50,7 +50,7 @@ export default function Home() {
                 ได้รับฝุ่นวิญญาณ offline!
               </div>
               <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)' }}>
-                +{passiveDustEarned} ฝุ่นวิญญาณ (30/ชม.)
+                +{passiveDustEarned} ฝุ่นวิญญาณ ({passiveRate}/ชม.)
               </div>
             </div>
           </div>
@@ -182,6 +182,65 @@ export default function Home() {
             <div className="text-muted" style={{ fontSize: 12 }}>ไปที่หน้าวิญญาณเพื่อเลือกทีม</div>
           </div>
         )}
+
+        {/* Passive Dust Stats */}
+        {(() => {
+          const bondBonus  = passiveRate - 30;
+          const avgBond    = team.length > 0
+            ? Math.floor(team.reduce((s, g) => s + g.bond, 0) / team.length)
+            : 0;
+          const maxOffline = passiveRate * 8;
+          const dust       = player?.spirit_dust ?? 0;
+          const toBasic    = Math.max(0, 50  - dust);
+          const toPremium  = Math.max(0, 150 - dust);
+          return (
+            <div className="card" style={{ background: 'rgba(124,58,237,0.07)', border: '1px solid rgba(168,85,247,0.2)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <span style={{ fontWeight: 700, fontSize: 13 }}>🌀 Passive Income</span>
+                <span style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 700, fontSize: 18, color: 'var(--gold)' }}>
+                  {passiveRate}<span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'inherit' }}>/ชม.</span>
+                </span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)' }}>
+                  <span>⚡ Base rate</span>
+                  <span style={{ color: 'var(--text-light)' }}>30/ชม.</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)' }}>
+                  <span>💞 Bond bonus (avg {avgBond})</span>
+                  <span style={{ color: bondBonus > 0 ? 'var(--green)' : 'var(--text-muted)' }}>
+                    {bondBonus > 0 ? `+${bondBonus}` : '0'}/ชม.
+                  </span>
+                </div>
+                <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', margin: '2px 0' }} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)' }}>
+                  <span>⏰ Max offline (8ชม.)</span>
+                  <span style={{ color: 'var(--text-light)' }}>🌀 {maxOffline}</span>
+                </div>
+                {(toBasic > 0 || toPremium > 0) && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)' }}>
+                    <span>🎯 ถึง summon ถัดไป</span>
+                    <span style={{ color: 'var(--gold)' }}>
+                      {toBasic > 0
+                        ? `${Math.ceil(toBasic / passiveRate * 60)} นาที (พื้นฐาน)`
+                        : `${Math.ceil(toPremium / passiveRate * 60)} นาที (พิเศษ)`}
+                    </span>
+                  </div>
+                )}
+                {team.length === 0 && (
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, fontStyle: 'italic' }}>
+                    💡 เพิ่มผีในทีมและเพิ่ม Bond เพื่อเพิ่ม rate
+                  </div>
+                )}
+                {team.length > 0 && bondBonus === 0 && (
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, fontStyle: 'italic' }}>
+                    💡 Bond ทีม {avgBond}/100 — ต่อสู้และผจญภัยเพื่อเพิ่ม rate
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Menu Grid */}
         <div>
