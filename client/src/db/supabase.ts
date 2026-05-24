@@ -42,7 +42,7 @@ export const Auth = {
   async getPlayer(): Promise<Player | null> {
     const session = await this.getSession();
     if (!session) return null;
-    const { data } = await db.from('players').select('*').eq('user_id', session.user.id).single();
+    const { data } = await db.from('players').select('*').eq('user_id', session.user.id).maybeSingle();
     return data as Player | null;
   },
 };
@@ -100,7 +100,7 @@ export const GhostService = {
 // ── SAVE SERVICE ──────────────────────────────────────────────
 export const SaveService = {
   async getCurrent(playerId: string): Promise<Save | null> {
-    const { data } = await db.from('saves').select('*').eq('player_id', playerId).eq('is_active', true).single();
+    const { data } = await db.from('saves').select('*').eq('player_id', playerId).eq('is_active', true).maybeSingle();
     return data as Save | null;
   },
 
