@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { Ghost, GameState } from '../types';
 import { db, Auth, GhostService, SaveService } from '../db/supabase';
+import { GHOST_LIST } from '../data/ghosts';
 
 interface GameStore extends GameState {
   // Actions
@@ -53,6 +54,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({ isLoading: true });
     await Auth.signUp(email, password, username);
     await get().loadAll();
+    // Give starter ghost (random common) to brand-new players
+    const { player, ghosts } = get();
+    if (player && ghosts.length === 0) {
+      const commons = GHOST_LIST.filter(g => g.rarity === 'common');
+      const starter = commons[Math.floor(Math.random() * commons.length)];
+      const newGhost = await GhostService.add(player.id, starter.id);
+      set(state => ({ ghosts: [...state.ghosts, newGhost] }));
+    }
   },
 
   async signOut() {

@@ -1,5 +1,6 @@
 export type ElementType = 'fire' | 'water' | 'wood' | 'earth' | 'metal' | 'dark' | 'light';
 export type ClassType  = 'dps' | 'tank' | 'mage' | 'healer' | 'debuffer' | 'berserker' | 'boss_tank';
+export type Rarity     = 'common' | 'uncommon' | 'rare' | 'legendary';
 export type EvoStage   = 0 | 1 | 2;
 export type EndingType = 'good' | 'neutral' | 'bad' | 'true';
 
@@ -19,6 +20,7 @@ export interface GhostDef {
   nameTh: string;
   element: ElementType;
   classType: ClassType;
+  rarity: Rarity;
   emoji: string;
   baseStats: {
     hp: number; str: number; mag: number;

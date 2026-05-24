@@ -1,14 +1,18 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
-import { GHOST_REG, ELEMENT_LABELS, CLASS_LABELS } from '../data/ghosts';
+import {
+  GHOST_REG, ELEMENT_LABELS, CLASS_LABELS,
+  RARITY_LABELS, RARITY_COLOR, RARITY_TEXT,
+  SUMMON_POOLS, POOL_COST, POOL_LABELS,
+  rollRarity, pickGhostByRarity,
+} from '../data/ghosts';
 import Chibi from '../components/Chibi';
 import ScreenHeader from '../components/ScreenHeader';
 import BottomNav from '../components/BottomNav';
 
 const EL_FILTERS = ['ทั้งหมด', 'fire', 'water', 'wood', 'earth', 'metal', 'dark', 'light'];
-const SUMMON_COST = 50;
-const GHOST_POOL = Object.keys(GHOST_REG);
+type PoolKey = keyof typeof SUMMON_POOLS;
 
 export default function Roster() {
   const navigate = useNavigate();
@@ -17,24 +21,35 @@ export default function Roster() {
   const [elFilter, setElFilter] = useState('ทั้งหมด');
   const [sort, setSort] = useState<'level' | 'bond' | 'element'>('level');
   const [showSummon, setShowSummon] = useState(false);
-  const [summoning, setSummoning] = useState(false);
-  const [summonResult, setSummonResult] = useState<{ ghostType: string } | null>(null);
+  const [selectedPool, setSelectedPool] = useState<PoolKey>('basic');
+  const [summonPhase, setSummonPhase] = useState<'select' | 'spinning' | 'reveal'>('select');
+  const [summonResult, setSummonResult] = useState<{ ghostType: string; rarity: string } | null>(null);
   const [summonErr, setSummonErr] = useState('');
 
-  async function handleSummon() {
-    if (summoning) return;
-    setSummoning(true);
-    setSummonErr('');
+  function openSummon() {
+    setSummonPhase('select');
     setSummonResult(null);
-    try {
-      const ghostType = GHOST_POOL[Math.floor(Math.random() * GHOST_POOL.length)];
-      const ghost = await summonGhost(ghostType, SUMMON_COST);
-      setSummonResult({ ghostType: ghost.ghost_type });
-    } catch (e: unknown) {
-      setSummonErr(e instanceof Error ? e.message : 'เกิดข้อผิดพลาด');
-    } finally {
-      setSummoning(false);
-    }
+    setSummonErr('');
+    setShowSummon(true);
+  }
+
+  async function handleSummon() {
+    const cost = POOL_COST[selectedPool];
+    setSummonPhase('spinning');
+    setSummonErr('');
+    // Wait 1.5s animation then reveal
+    setTimeout(async () => {
+      try {
+        const rarity = rollRarity(selectedPool);
+        const ghostType = pickGhostByRarity(rarity);
+        await summonGhost(ghostType, cost);
+        setSummonResult({ ghostType, rarity });
+        setSummonPhase('reveal');
+      } catch (e: unknown) {
+        setSummonErr(e instanceof Error ? e.message : 'เกิดข้อผิดพลาด');
+        setSummonPhase('select');
+      }
+    }, 1500);
   }
 
   const filtered = ghosts
@@ -57,7 +72,7 @@ export default function Roster() {
         right={
           <button
             type="button"
-            onClick={() => { setSummonResult(null); setSummonErr(''); setShowSummon(true); }}
+            onClick={openSummon}
             style={{
               background: 'linear-gradient(135deg, #7c3aed, #a855f7)',
               border: 'none', borderRadius: 8, color: '#fff',
@@ -69,90 +84,140 @@ export default function Roster() {
         }
       />
 
-      {/* Summon Modal Overlay */}
+      {/* Summon Modal */}
       {showSummon && (
         <div
-          style={{
-            position: 'fixed', inset: 0, zIndex: 100,
-            background: 'rgba(0,0,0,0.7)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}
-          onClick={() => setShowSummon(false)}
+          style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.75)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={() => summonPhase !== 'spinning' && setShowSummon(false)}
         >
           <div
-            style={{
-              background: 'var(--bg-card)', border: '1px solid rgba(168,85,247,0.4)',
-              borderRadius: 16, padding: 24, color: 'var(--text-main)',
-              width: 'min(340px, 90vw)', textAlign: 'center',
-            }}
+            style={{ background: 'var(--bg-card)', border: '1px solid rgba(168,85,247,0.4)',
+              borderRadius: 18, padding: 20, width: 'min(360px, 92vw)', color: 'var(--text-main)' }}
             onClick={e => e.stopPropagation()}
           >
-            <div style={{ fontSize: 28, marginBottom: 4 }}>🔮 เชิญวิญญาณ</div>
-            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>
-              สุ่ม 1 ผีจากรายการทั้งหมด
-            </div>
-
-            <div style={{
-              background: 'rgba(124,58,237,0.1)', borderRadius: 10,
-              padding: '10px 16px', marginBottom: 16,
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            }}>
-              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>ฝุ่นวิญญาณของคุณ</span>
-              <span style={{ fontSize: 16, fontWeight: 700, color: dust >= SUMMON_COST ? 'var(--gold)' : 'var(--red)' }}>
-                🌀 {dust}
-              </span>
-            </div>
-
-            {summonResult ? (
-              <div style={{
-                background: 'linear-gradient(135deg, rgba(124,58,237,0.2), rgba(168,85,247,0.1))',
-                border: '1px solid rgba(168,85,247,0.5)', borderRadius: 12,
-                padding: '20px 16px', marginBottom: 16,
-              }}>
-                <div style={{ fontSize: 48, marginBottom: 8 }}>
-                  {GHOST_REG[summonResult.ghostType]?.emoji ?? '👻'}
-                </div>
-                <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 4 }}>
-                  {GHOST_REG[summonResult.ghostType]?.nameTh ?? summonResult.ghostType}
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>ปรากฏกาย!</div>
-              </div>
-            ) : (
-              <div style={{
-                background: 'rgba(255,255,255,0.03)', borderRadius: 12,
-                padding: '20px 16px', marginBottom: 16, fontSize: 40,
-              }}>❓</div>
-            )}
-
-            {summonErr && (
-              <div style={{ color: 'var(--red)', fontSize: 13, marginBottom: 12 }}>
-                ⚠️ {summonErr}
+            {/* PHASE: spinning */}
+            {summonPhase === 'spinning' && (
+              <div style={{ textAlign: 'center', padding: '32px 0' }}>
+                <div style={{ fontSize: 64, animation: 'spin 0.8s linear infinite' }}>🔮</div>
+                <div style={{ marginTop: 16, fontWeight: 700, fontSize: 16 }}>กำลังเรียกวิญญาณ...</div>
+                <div style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 6 }}>พลังวิญญาณกำลังรวมตัว</div>
               </div>
             )}
 
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                style={{ flex: 1 }}
-                onClick={() => setShowSummon(false)}
-              >
-                ปิด
-              </button>
-              <button
-                type="button"
-                className="btn btn-primary"
-                style={{
-                  flex: 2,
-                  opacity: dust < SUMMON_COST ? 0.5 : 1,
-                  cursor: dust < SUMMON_COST ? 'not-allowed' : 'pointer',
-                }}
-                disabled={dust < SUMMON_COST || summoning}
-                onClick={handleSummon}
-              >
-                {summoning ? 'กำลังเชิญ...' : `✨ เชิญ (${SUMMON_COST} 🌀)`}
-              </button>
-            </div>
+            {/* PHASE: reveal */}
+            {summonPhase === 'reveal' && summonResult && (() => {
+              const def = GHOST_REG[summonResult.ghostType];
+              const isLeg = summonResult.rarity === 'legendary';
+              return (
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 12 }}>✨ ปรากฏกาย!</div>
+                  <div style={{
+                    background: isLeg
+                      ? 'linear-gradient(135deg, rgba(255,136,0,0.25), rgba(255,200,0,0.1))'
+                      : RARITY_COLOR[summonResult.rarity],
+                    border: `2px solid ${RARITY_TEXT[summonResult.rarity]}`,
+                    borderRadius: 14, padding: '20px 16px', marginBottom: 14,
+                    animation: 'popIn 0.4s ease-out',
+                  }}>
+                    <div style={{ fontSize: 60, marginBottom: 8 }}>{def?.emoji ?? '👻'}</div>
+                    <div style={{ fontWeight: 700, fontSize: 20, marginBottom: 6 }}>{def?.nameTh}</div>
+                    <span style={{
+                      display: 'inline-block', padding: '3px 12px', borderRadius: 20,
+                      background: RARITY_COLOR[summonResult.rarity],
+                      border: `1px solid ${RARITY_TEXT[summonResult.rarity]}`,
+                      color: RARITY_TEXT[summonResult.rarity],
+                      fontWeight: 700, fontSize: 12,
+                    }}>
+                      {'⭐'.repeat(
+                        summonResult.rarity === 'common' ? 1 :
+                        summonResult.rarity === 'uncommon' ? 2 :
+                        summonResult.rarity === 'rare' ? 3 : 4
+                      )} {RARITY_LABELS[summonResult.rarity]}
+                    </span>
+                    {isLeg && (
+                      <div style={{ marginTop: 10, fontSize: 12, color: '#ff8800', fontWeight: 700 }}>
+                        🎉 ยินดีด้วย! ได้ผีระดับตำนาน!
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button type="button" className="btn btn-secondary" style={{ flex: 1 }}
+                      onClick={() => setShowSummon(false)}>ปิด</button>
+                    <button type="button" className="btn btn-primary" style={{ flex: 2 }}
+                      onClick={() => { setSummonPhase('select'); setSummonResult(null); }}>
+                      🔮 เชิญอีก
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* PHASE: select pool */}
+            {summonPhase === 'select' && (
+              <>
+                <div style={{ textAlign: 'center', marginBottom: 16 }}>
+                  <div style={{ fontSize: 22, fontWeight: 700 }}>🔮 พิธีเชิญวิญญาณ</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+                    ฝุ่นของคุณ: <span style={{ color: 'var(--gold)', fontWeight: 700 }}>🌀 {dust}</span>
+                  </div>
+                </div>
+
+                {/* Pool selector */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+                  {(Object.keys(SUMMON_POOLS) as PoolKey[]).map(pool => {
+                    const cost = POOL_COST[pool];
+                    const weights = SUMMON_POOLS[pool];
+                    const canAfford = dust >= cost;
+                    const isSelected = selectedPool === pool;
+                    return (
+                      <button
+                        key={pool}
+                        type="button"
+                        onClick={() => canAfford && setSelectedPool(pool)}
+                        style={{
+                          background: isSelected ? 'rgba(168,85,247,0.2)' : 'rgba(255,255,255,0.04)',
+                          border: `1.5px solid ${isSelected ? 'rgba(168,85,247,0.7)' : 'rgba(255,255,255,0.1)'}`,
+                          borderRadius: 10, padding: '10px 14px', cursor: canAfford ? 'pointer' : 'not-allowed',
+                          opacity: canAfford ? 1 : 0.45, textAlign: 'left', color: 'var(--text-main)',
+                          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        }}
+                      >
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: 14 }}>
+                            {pool === 'basic' ? '🌱' : pool === 'premium' ? '💎' : '🎪'} {POOL_LABELS[pool]}
+                          </div>
+                          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+                            ธ {weights.common}% · ไม่ธ {weights.uncommon}% · หา {weights.rare}% · ตำ {weights.legendary}%
+                          </div>
+                        </div>
+                        <div style={{ fontWeight: 700, color: canAfford ? 'var(--gold)' : 'var(--red)', fontSize: 13 }}>
+                          🌀 {cost}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {summonErr && (
+                  <div style={{ color: 'var(--red)', fontSize: 12, marginBottom: 10, textAlign: 'center' }}>
+                    ⚠️ {summonErr}
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button type="button" className="btn btn-secondary" style={{ flex: 1 }}
+                    onClick={() => setShowSummon(false)}>ยกเลิก</button>
+                  <button
+                    type="button" className="btn btn-primary" style={{ flex: 2 }}
+                    disabled={dust < POOL_COST[selectedPool]}
+                    onClick={handleSummon}
+                  >
+                    ✨ เชิญ ({POOL_COST[selectedPool]} 🌀)
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

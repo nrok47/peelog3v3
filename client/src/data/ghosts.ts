@@ -3,7 +3,7 @@ import type { GhostDef } from '../types';
 export const GHOST_REG: Record<string, GhostDef> = {
   pob: {
     id: 'pob', name: 'Pob', nameTh: 'ปอบ',
-    element: 'fire', classType: 'dps', emoji: '👻',
+    element: 'fire', classType: 'dps', rarity: 'common', emoji: '👻',
     baseStats: { hp:1200, str:38, mag:20, def:25, spr:18, spd:32 },
     skills: [
       { id:'pob_bite', name:'กัดสาป', type:'physical', power:80, gutsCost:0, cooldown:0, desc:'โจมตีธรรมดา' },
@@ -13,7 +13,7 @@ export const GHOST_REG: Record<string, GhostDef> = {
   },
   phiDib: {
     id: 'phiDib', name: 'Phi Dib', nameTh: 'ผีดิบ',
-    element: 'earth', classType: 'tank', emoji: '🧟',
+    element: 'earth', classType: 'tank', rarity: 'common', emoji: '🧟',
     baseStats: { hp:1600, str:38, mag:10, def:44, spr:20, spd:18 },
     skills: [
       { id:'phidib_slam', name:'ฟัดโครม', type:'physical', power:90, gutsCost:0, cooldown:0, desc:'โจมตีธรรมดา' },
@@ -23,7 +23,7 @@ export const GHOST_REG: Record<string, GhostDef> = {
   },
   krasue: {
     id: 'krasue', name: 'Krasue', nameTh: 'กระสือ',
-    element: 'dark', classType: 'mage', emoji: '💀',
+    element: 'dark', classType: 'mage', rarity: 'uncommon', emoji: '💀',
     baseStats: { hp:900, str:15, mag:50, def:18, spr:42, spd:38 },
     skills: [
       { id:'krasue_drain', name:'ดูดพลัง', type:'magical', power:70, gutsCost:0, cooldown:0, desc:'โจมตีและดูด HP' },
@@ -33,7 +33,7 @@ export const GHOST_REG: Record<string, GhostDef> = {
   },
   kumantong: {
     id: 'kumantong', name: 'Kumantong', nameTh: 'กุมารทอง',
-    element: 'light', classType: 'healer', emoji: '👼',
+    element: 'light', classType: 'healer', rarity: 'uncommon', emoji: '👼',
     baseStats: { hp:1000, str:20, mag:36, def:28, spr:40, spd:30 },
     skills: [
       { id:'kmt_slap', name:'ตบมือ', type:'physical', power:60, gutsCost:0, cooldown:0, desc:'โจมตีธรรมดา' },
@@ -43,7 +43,7 @@ export const GHOST_REG: Record<string, GhostDef> = {
   },
   nangTani: {
     id: 'nangTani', name: 'Nang Tani', nameTh: 'นางตานี',
-    element: 'wood', classType: 'mage', emoji: '🌿',
+    element: 'wood', classType: 'mage', rarity: 'uncommon', emoji: '🌿',
     baseStats: { hp:950, str:18, mag:46, def:22, spr:36, spd:36 },
     skills: [
       { id:'tani_vine', name:'เถาวัลย์รัด', type:'magical', power:75, gutsCost:0, cooldown:0, desc:'โจมตีธรรมดา' },
@@ -53,7 +53,7 @@ export const GHOST_REG: Record<string, GhostDef> = {
   },
   pret: {
     id: 'pret', name: 'Pret', nameTh: 'เปรต',
-    element: 'dark', classType: 'dps', emoji: '👁️',
+    element: 'dark', classType: 'dps', rarity: 'uncommon', emoji: '👁️',
     baseStats: { hp:1100, str:44, mag:28, def:20, spr:18, spd:28 },
     skills: [
       { id:'pret_claws', name:'เล็บเปรต', type:'physical', power:95, gutsCost:0, cooldown:0, desc:'โจมตีธรรมดา' },
@@ -63,7 +63,7 @@ export const GHOST_REG: Record<string, GhostDef> = {
   },
   maeNak: {
     id: 'maeNak', name: 'Mae Nak', nameTh: 'แม่นาค',
-    element: 'water', classType: 'tank', emoji: '🪭',
+    element: 'water', classType: 'tank', rarity: 'rare', emoji: '🪭',
     baseStats: { hp:2000, str:35, mag:25, def:50, spr:40, spd:22 },
     skills: [
       { id:'nak_splash', name:'ซัดน้ำ', type:'physical', power:85, gutsCost:0, cooldown:0, desc:'โจมตีธรรมดา' },
@@ -73,7 +73,7 @@ export const GHOST_REG: Record<string, GhostDef> = {
   },
   kalakinee: {
     id: 'kalakinee', name: 'Kalakinee', nameTh: 'กาลกิณี',
-    element: 'metal', classType: 'debuffer', emoji: '⚡',
+    element: 'metal', classType: 'debuffer', rarity: 'rare', emoji: '⚡',
     baseStats: { hp:800, str:25, mag:42, def:20, spr:30, spd:44 },
     skills: [
       { id:'kala_zap', name:'ฟ้าผ่า', type:'magical', power:70, gutsCost:0, cooldown:0, desc:'โจมตีธรรมดา' },
@@ -83,7 +83,7 @@ export const GHOST_REG: Record<string, GhostDef> = {
   },
   pisaj: {
     id: 'pisaj', name: 'Pisaj', nameTh: 'ปีศาจ',
-    element: 'fire', classType: 'dps', emoji: '🔥',
+    element: 'fire', classType: 'dps', rarity: 'rare', emoji: '🔥',
     baseStats: { hp:1300, str:45, mag:36, def:28, spr:25, spd:30 },
     skills: [
       { id:'pisaj_burn', name:'เผาไหม้', type:'physical', power:90, gutsCost:0, cooldown:0, desc:'โจมตีธรรมดา' },
@@ -93,7 +93,7 @@ export const GHOST_REG: Record<string, GhostDef> = {
   },
   phiTaiHong: {
     id: 'phiTaiHong', name: 'Phi Tai Hong', nameTh: 'ผีตายโหง',
-    element: 'dark', classType: 'berserker', emoji: '💢',
+    element: 'dark', classType: 'berserker', rarity: 'rare', emoji: '💢',
     baseStats: { hp:1400, str:52, mag:15, def:22, spr:15, spd:26 },
     skills: [
       { id:'pth_rage', name:'คลุ้มคลั่ง', type:'physical', power:100, gutsCost:0, cooldown:0, desc:'โจมตีธรรมดา' },
@@ -103,7 +103,7 @@ export const GHOST_REG: Record<string, GhostDef> = {
   },
   asurakay: {
     id: 'asurakay', name: 'Asurakay', nameTh: 'อสุรกาย',
-    element: 'earth', classType: 'boss_tank', emoji: '🗿',
+    element: 'earth', classType: 'boss_tank', rarity: 'legendary', emoji: '🗿',
     baseStats: { hp:3000, str:55, mag:40, def:56, spr:46, spd:20 },
     skills: [
       { id:'asura_crush', name:'บดขยี้', type:'physical', power:110, gutsCost:0, cooldown:0, desc:'โจมตีธรรมดา' },
@@ -113,7 +113,7 @@ export const GHOST_REG: Record<string, GhostDef> = {
   },
   motherSpirit: {
     id: 'motherSpirit', name: 'Mother Spirit', nameTh: 'แม่เจ้าของ',
-    element: 'light', classType: 'healer', emoji: '✨',
+    element: 'light', classType: 'healer', rarity: 'legendary', emoji: '✨',
     baseStats: { hp:1500, str:20, mag:52, def:35, spr:56, spd:28 },
     skills: [
       { id:'ms_bless', name:'อวยพร', type:'magical', power:65, gutsCost:0, cooldown:0, desc:'โจมตีธรรมดา' },
@@ -144,3 +144,48 @@ export const CLASS_LABELS: Record<string, string> = {
 };
 
 export const GHOST_LIST = Object.values(GHOST_REG);
+
+export const RARITY_LABELS: Record<string, string> = {
+  common: 'ธรรมดา', uncommon: 'ไม่ธรรมดา', rare: 'หายาก', legendary: 'ตำนาน',
+};
+
+export const RARITY_COLOR: Record<string, string> = {
+  common:    'rgba(160,160,160,0.3)',
+  uncommon:  'rgba(68,170,68,0.3)',
+  rare:      'rgba(68,68,255,0.35)',
+  legendary: 'rgba(255,136,0,0.35)',
+};
+
+export const RARITY_TEXT: Record<string, string> = {
+  common: '#aaa', uncommon: '#44aa44', rare: '#6688ff', legendary: '#ff8800',
+};
+
+// Summon pools: { rarity → weight }
+export const SUMMON_POOLS = {
+  basic:    { common: 65, uncommon: 28, rare: 6,  legendary: 1  },
+  premium:  { common: 25, uncommon: 45, rare: 24, legendary: 6  },
+  festival: { common: 5,  uncommon: 30, rare: 45, legendary: 20 },
+} as const;
+
+export const POOL_COST: Record<string, number> = {
+  basic: 50, premium: 150, festival: 300,
+};
+
+export const POOL_LABELS: Record<string, string> = {
+  basic: 'พื้นฐาน', premium: 'พิเศษ', festival: 'เทศกาล',
+};
+
+export function rollRarity(pool: keyof typeof SUMMON_POOLS): string {
+  const weights = SUMMON_POOLS[pool];
+  const roll = Math.random() * 100;
+  if (roll < weights.legendary) return 'legendary';
+  if (roll < weights.legendary + weights.rare) return 'rare';
+  if (roll < weights.legendary + weights.rare + weights.uncommon) return 'uncommon';
+  return 'common';
+}
+
+export function pickGhostByRarity(rarity: string): string {
+  const candidates = GHOST_LIST.filter(g => g.rarity === rarity);
+  if (candidates.length === 0) return GHOST_LIST[0].id;
+  return candidates[Math.floor(Math.random() * candidates.length)].id;
+}
