@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { GHOST_REG } from '../data/ghosts';
+import { ZONE_DEFS, getZoneDef, getZoneIndex, buildZoneEnemies } from '../data/zones';
 import Chibi from '../components/Chibi';
 import ScreenHeader from '../components/ScreenHeader';
 import type { Ghost, GhostStats } from '../types';
@@ -20,7 +21,6 @@ interface Combatant {
 
 interface LogEntry { text: string; type: 'hit' | 'skill' | 'heal' | 'info' }
 
-// Skill tree → stat bonuses applied before battle
 const SKILL_STAT_BONUSES: Record<string, Partial<GhostStats>> = {
   atk1: { str: 5  },
   atk2: { str: 10 },
@@ -45,10 +45,10 @@ function getSkillBonuses(ghost: Ghost) {
     if (b.spd) s.spd += b.spd;
   }
   return {
-    statBonus:       s,
-    gutsMultiplier:  1 + (nodes.includes('guts1') ? 0.15 : 0) + (nodes.includes('guts2') ? 0.15 : 0),
-    atbStart:        nodes.includes('rush') ? 30 : 0,
-    regenPct:        nodes.includes('regen') ? 0.02 : 0,
+    statBonus:      s,
+    gutsMultiplier: 1 + (nodes.includes('guts1') ? 0.15 : 0) + (nodes.includes('guts2') ? 0.15 : 0),
+    atbStart:       nodes.includes('rush') ? 30 : 0,
+    regenPct:       nodes.includes('regen') ? 0.02 : 0,
   };
 }
 
@@ -60,7 +60,6 @@ function makeCombatant(ghost: Ghost, isPlayer: boolean): Combatant {
     ? getSkillBonuses(ghost)
     : { statBonus: { hp: 0, str: 0, mag: 0, def: 0, spr: 0, spd: 0 }, gutsMultiplier: 1, atbStart: 0, regenPct: 0 };
 
-  // merge saved stats with baseStats fallback per-field, prevents NaN when DB stores partial JSON
   const boostedStats: GhostStats = {
     hp:  (saved.hp  ?? fallback.hp)  + statBonus.hp,
     str: (saved.str ?? fallback.str) + statBonus.str,
@@ -76,28 +75,27 @@ function makeCombatant(ghost: Ghost, isPlayer: boolean): Combatant {
   };
 }
 
-const DUMMY_ENEMIES: Ghost[] = [
-  { id: 'e1', ghost_type: 'krasue',     level: 5, stats: { hp: 900,  str: 15, mag: 50, def: 18, spr: 42, spd: 38 } } as Ghost,
-  { id: 'e2', ghost_type: 'phiTaiHong', level: 4, stats: { hp: 1400, str: 52, mag: 15, def: 22, spr: 15, spd: 26 } } as Ghost,
-  { id: 'e3', ghost_type: 'pisaj',      level: 5, stats: { hp: 1300, str: 45, mag: 36, def: 28, spr: 25, spd: 30 } } as Ghost,
-];
-
-const AVG_ENEMY_LV = Math.round(DUMMY_ENEMIES.reduce((s, g) => s + g.level, 0) / DUMMY_ENEMIES.length);
-
 export default function Battle() {
-  const { ghosts, addBattleRewards } = useGameStore();
+  const { ghosts, save, addBattleRewards, advanceZoneStep } = useGameStore();
   const [phase, setPhase]             = useState<'select' | 'battle' | 'end'>('select');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [winner, setWinner]           = useState<'player' | 'ai' | null>(null);
   const [log, setLog]                 = useState<LogEntry[]>([]);
   const [combatants, setCombatants]   = useState<Combatant[]>([]);
-  const [battleRewards, setBattleRewards] = useState<{ expGained: number; levelUps: string[]; dustGained: number } | null>(null);
-  const tickRef        = useRef<number | null>(null);
-  const logRef         = useRef<HTMLDivElement>(null);
-  const rewardDoneRef  = useRef(false);
+  const [enemyGhosts, setEnemyGhosts] = useState<Ghost[]>([]);
+  const [battleRewards, setBattleRewards] = useState<{ expGained: number; levelUps: string[]; dustGained: number; zoneCleared: boolean } | null>(null);
+  const tickRef       = useRef<number | null>(null);
+  const logRef        = useRef<HTMLDivElement>(null);
+  const rewardDoneRef = useRef(false);
+
+  const zone      = getZoneDef(save?.zone_id ?? 'zone_01');
+  const stepsDone = save?.steps_taken ?? 0;
+  const isBoss    = stepsDone === zone.steps - 1;
+  const zoneIdx   = getZoneIndex(save?.zone_id ?? 'zone_01');
 
   const playerTeam = ghosts.filter(g => selectedIds.includes(g.id));
-  const enemyTeam  = DUMMY_ENEMIES;
+  const enemySide  = combatants.filter(c => !c.isPlayer);
+  const playerSide = combatants.filter(c =>  c.isPlayer);
 
   function toggleSelect(id: string) {
     setSelectedIds(prev =>
@@ -109,12 +107,17 @@ export default function Battle() {
     if (playerTeam.length < 1) return;
     rewardDoneRef.current = false;
     setBattleRewards(null);
+
+    // Generate zone enemies for this step
+    const enemies = buildZoneEnemies(zone, stepsDone, playerTeam.length);
+    setEnemyGhosts(enemies);
+
     const initial: Combatant[] = [
       ...playerTeam.slice(0, 3).map(g => makeCombatant(g, true)),
-      ...enemyTeam.map(g => makeCombatant(g, false)),
+      ...enemies.map(g => makeCombatant(g, false)),
     ];
     setCombatants(initial);
-    setLog([{ text: '⚔️ การต่อสู้เริ่มต้นแล้ว!', type: 'info' }]);
+    setLog([{ text: `⚔️ ${isBoss ? '👑 BOSS FIGHT! ' : ''}การต่อสู้เริ่มต้น — ${zone.name} (${stepsDone + 1}/${zone.steps})`, type: 'info' }]);
     setPhase('battle');
     setWinner(null);
   }
@@ -123,7 +126,19 @@ export default function Battle() {
   useEffect(() => {
     if (winner !== 'player' || rewardDoneRef.current) return;
     rewardDoneRef.current = true;
-    addBattleRewards(selectedIds, AVG_ENEMY_LV).then(r => { if (r) setBattleRewards(r); });
+
+    const avgEnemyLv = enemyGhosts.length > 0
+      ? Math.round(enemyGhosts.reduce((s, g) => s + g.level, 0) / enemyGhosts.length)
+      : zone.bossLevel;
+
+    Promise.all([
+      addBattleRewards(selectedIds, avgEnemyLv),
+      advanceZoneStep(),
+    ]).then(([rewards, zoneResult]) => {
+      if (rewards) {
+        setBattleRewards({ ...rewards, zoneCleared: zoneResult?.zoneCleared ?? false });
+      }
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [winner]);
 
@@ -159,7 +174,7 @@ export default function Battle() {
         ));
 
         setLog(l => [...l.slice(-30), {
-          text: `${GHOST_REG[actor.ghost.ghost_type]?.nameTh} โจมตี ${GHOST_REG[target.ghost.ghost_type]?.nameTh} (-${dmg} HP)`,
+          text: `${GHOST_REG[actor.ghost.ghost_type]?.nameTh} โจมตี ${GHOST_REG[target.ghost.ghost_type]?.nameTh} (-${dmg})`,
           type: 'hit',
         }]);
 
@@ -193,18 +208,65 @@ export default function Battle() {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
   }, [log]);
 
-  const playerSide = combatants.filter(c =>  c.isPlayer);
-  const enemySide  = combatants.filter(c => !c.isPlayer);
+  function resetToSelect() {
+    setPhase('select');
+    setSelectedIds([]);
+    setCombatants([]);
+    setEnemyGhosts([]);
+    setLog([]);
+    setWinner(null);
+    setBattleRewards(null);
+  }
 
   // ── TEAM SELECT PHASE ──────────────────────────────────────────
   if (phase === 'select') {
+    const nextStepIsBoss = (save?.steps_taken ?? 0) === zone.steps - 1;
     return (
       <div className="screen fade-in">
         <ScreenHeader title="⚔️ เลือกทีม" back="/home" />
         <div className="screen-content">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>เลือกผี 3 ตัวเพื่อสู้</span>
-            <span style={{ fontWeight: 700, color: selectedIds.length === 3 ? 'var(--gold)' : 'var(--text-muted)' }}>
+
+          {/* Zone context */}
+          <div style={{
+            background: nextStepIsBoss
+              ? 'linear-gradient(135deg, rgba(255,71,87,0.12), rgba(255,71,87,0.04))'
+              : 'linear-gradient(135deg, rgba(38,222,129,0.08), var(--bg-card))',
+            border: `1.5px solid ${nextStepIsBoss ? 'rgba(255,71,87,0.4)' : 'rgba(38,222,129,0.25)'}`,
+            borderRadius: 'var(--r-lg)',
+            padding: '12px 14px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}>
+            <div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>
+                {nextStepIsBoss ? '👑 BOSS BATTLE' : `บทที่ ${zone.chapter} — ${zone.name}`}
+              </div>
+              <div style={{ fontWeight: 700, fontSize: 14 }}>
+                {nextStepIsBoss ? `⚠️ บอสประจำโซน — ${zone.name}` : zone.desc}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>
+                ศัตรู: {(nextStepIsBoss ? zone.bossTypes : zone.enemies)
+                  .map(t => GHOST_REG[t]?.nameTh ?? t).join(', ')}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'right', marginBottom: 4 }}>
+                {stepsDone}/{zone.steps} การต่อสู้
+              </div>
+              <div style={{ width: 60, height: 6, background: 'rgba(255,255,255,0.1)', borderRadius: 3 }}>
+                <div style={{
+                  height: '100%', borderRadius: 3,
+                  width: `${(stepsDone / zone.steps) * 100}%`,
+                  background: nextStepIsBoss ? 'var(--red)' : 'var(--green)',
+                }} />
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>เลือกผีที่จะส่งสู้</span>
+            <span style={{ fontWeight: 700, color: selectedIds.length > 0 ? 'var(--gold)' : 'var(--text-muted)' }}>
               {selectedIds.length}/3
             </span>
           </div>
@@ -253,8 +315,8 @@ export default function Battle() {
                         {ghost.nickname || def.nameTh}
                       </div>
                       <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
-                        Lv.{ghost.level} · {def.classType.toUpperCase()} · {ghost.stat_points > 0 && (
-                          <span style={{ color: 'var(--gold)' }}>{ghost.stat_points}pt</span>
+                        Lv.{ghost.level} · {def.classType.toUpperCase()}{ghost.stat_points > 0 && (
+                          <span style={{ color: 'var(--gold)' }}> · {ghost.stat_points}pt</span>
                         )}
                       </div>
                       <div className="bar-track thin" style={{ marginTop: 4 }}>
@@ -269,13 +331,34 @@ export default function Battle() {
 
           <button
             type="button"
-            className="btn btn-red btn-full btn-lg"
+            className={`btn btn-full btn-lg ${nextStepIsBoss ? 'btn-red' : 'btn-red'}`}
             disabled={selectedIds.length < 1}
             onClick={startBattle}
             style={{ opacity: selectedIds.length < 1 ? 0.5 : 1 }}
           >
-            {selectedIds.length < 1 ? 'เลือกผีอย่างน้อย 1 ตัว' : `⚔️ เริ่มต่อสู้! (${selectedIds.length} ตัว)`}
+            {selectedIds.length < 1
+              ? 'เลือกผีอย่างน้อย 1 ตัว'
+              : nextStepIsBoss
+                ? `👑 เข้าสู้บอส! (${selectedIds.length} ตัว)`
+                : `⚔️ เริ่มต่อสู้! (${selectedIds.length} ตัว)`}
           </button>
+
+          {/* Zone progression overview */}
+          <div style={{ display: 'flex', gap: 4, justifyContent: 'center', marginTop: 4 }}>
+            {Array.from({ length: zone.steps }).map((_, i) => (
+              <div key={i} style={{
+                width: i < stepsDone ? 18 : 12,
+                height: 6,
+                borderRadius: 3,
+                background: i < stepsDone
+                  ? 'var(--green)'
+                  : i === stepsDone
+                    ? (nextStepIsBoss ? 'var(--red)' : 'var(--gold)')
+                    : 'rgba(255,255,255,0.1)',
+                transition: 'all 0.2s',
+              }} />
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -284,7 +367,7 @@ export default function Battle() {
   // ── BATTLE / END PHASE ─────────────────────────────────────────
   return (
     <div className="screen fade-in" style={{ paddingBottom: 0 }}>
-      <ScreenHeader title="⚔️ Battle" back="/home" />
+      <ScreenHeader title={`⚔️ ${isBoss ? '👑 BOSS — ' : ''}${zone.name}`} back="/home" />
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '10px 12px', gap: 8, minHeight: 0 }}>
         {/* Enemy team */}
@@ -401,6 +484,26 @@ export default function Battle() {
                 {winner === 'player' ? '🏆 ชนะแล้ว!' : '💀 พ่ายแพ้...'}
               </div>
 
+              {/* Zone cleared banner */}
+              {winner === 'player' && battleRewards?.zoneCleared && (
+                <div style={{
+                  background: 'linear-gradient(135deg, rgba(245,197,24,0.2), rgba(245,197,24,0.05))',
+                  border: '1.5px solid rgba(245,197,24,0.5)',
+                  borderRadius: 'var(--r-lg)', padding: '12px 14px',
+                  textAlign: 'center', animation: 'popIn 0.4s ease-out',
+                }}>
+                  <div style={{ fontSize: 22, marginBottom: 4 }}>🎉</div>
+                  <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--gold)', fontFamily: 'Bai Jamjuree, sans-serif' }}>
+                    โซนผ่านแล้ว!
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+                    {ZONE_DEFS[zoneIdx + 1]
+                      ? `บทที่ ${ZONE_DEFS[zoneIdx + 1].chapter} — ${ZONE_DEFS[zoneIdx + 1].name} ปลดล็อกแล้ว!`
+                      : 'คุณผ่านทุกโซนแล้ว! 🏆'}
+                  </div>
+                </div>
+              )}
+
               {/* Rewards box */}
               {winner === 'player' && battleRewards && (
                 <div style={{
@@ -413,7 +516,7 @@ export default function Battle() {
                     ✨ รางวัลการต่อสู้
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--text-light)', display: 'flex', gap: 16 }}>
-                    <span>⚡ EXP +{battleRewards.expGained} ต่อตัว</span>
+                    <span>⚡ EXP +{battleRewards.expGained}</span>
                     <span>🌀 +{battleRewards.dustGained} ฝุ่น</span>
                     <span>💞 Bond +2</span>
                   </div>
@@ -433,12 +536,13 @@ export default function Battle() {
               )}
 
               {winner === 'player' && !battleRewards && (
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>กำลังบันทึกรางวัล...</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>
+                  กำลังบันทึกรางวัล...
+                </div>
               )}
 
-              <button type="button" className="btn btn-gold btn-full"
-                onClick={() => { setPhase('select'); setSelectedIds([]); setCombatants([]); setLog([]); setWinner(null); setBattleRewards(null); }}>
-                🔄 เลือกทีมใหม่
+              <button type="button" className="btn btn-gold btn-full" onClick={resetToSelect}>
+                🔄 สู้ต่อ
               </button>
             </div>
           )}

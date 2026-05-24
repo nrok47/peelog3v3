@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Ghost, GameState, Decision } from '../types';
 import { db, Auth, GhostService, SaveService } from '../db/supabase';
 import { GHOST_LIST } from '../data/ghosts';
+import { ZONE_DEFS, getZoneIndex } from '../data/zones';
 
 interface GameStore extends GameState {
   // Actions
@@ -15,6 +16,7 @@ interface GameStore extends GameState {
   summonGhost: (ghostType: string, cost: number) => Promise<Ghost>;
   addBattleRewards: (playerGhostIds: string[], avgEnemyLevel: number) => Promise<{ expGained: number; levelUps: string[]; dustGained: number }>;
   applyAdventureChoice: (eventId: string, choiceId: string, corruptionDelta: number, dustReward: number, bondGain: number) => Promise<void>;
+  advanceZoneStep: () => Promise<{ zoneCleared: boolean; newZoneId: string | null }>;
   passiveDustEarned: number;
   passiveRate: number;        // dust/hour current rate (bond-based)
 }
@@ -39,10 +41,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
       let player = await Auth.getPlayer();
       if (!player) { set({ isLoading: false, isAuth: false }); return; }
 
-      const [ghosts, save] = await Promise.all([
+      const [ghosts, rawSave] = await Promise.all([
         GhostService.getAll(player.id),
         SaveService.getCurrent(player.id),
       ]);
+      // Auto-create save for brand-new players
+      const save = rawSave ?? await SaveService.createNew(player.id);
 
       const team = ghosts
         .filter(g => g.is_in_team)
@@ -211,6 +215,40 @@ export const useGameStore = create<GameStore>((set, get) => ({
         team: state.team.map(g => ({ ...g, bond: Math.min(100, g.bond + bondGain) })),
       }));
     }
+  },
+
+  async advanceZoneStep() {
+    const { save } = get();
+    if (!save) return { zoneCleared: false, newZoneId: null };
+
+    const zoneIdx  = getZoneIndex(save.zone_id);
+    const zoneDef  = ZONE_DEFS[zoneIdx];
+    const newSteps = save.steps_taken + 1;
+
+    // Boss battle clears the zone
+    if (newSteps >= (zoneDef?.steps ?? 5)) {
+      const nextZone = ZONE_DEFS[zoneIdx + 1];
+      if (nextZone) {
+        const updates = {
+          zone_id: nextZone.id,
+          steps_taken: 0,
+          zone_cleared: false,
+          chapter: save.chapter + 1,
+        };
+        await SaveService.checkpoint(save.id, updates);
+        set(state => ({ save: state.save ? { ...state.save, ...updates } : null }));
+        return { zoneCleared: true, newZoneId: nextZone.id };
+      } else {
+        // Final zone
+        await SaveService.checkpoint(save.id, { zone_cleared: true, steps_taken: newSteps });
+        set(state => ({ save: state.save ? { ...state.save, zone_cleared: true, steps_taken: newSteps } : null }));
+        return { zoneCleared: true, newZoneId: null };
+      }
+    }
+
+    await SaveService.checkpoint(save.id, { steps_taken: newSteps });
+    set(state => ({ save: state.save ? { ...state.save, steps_taken: newSteps } : null }));
+    return { zoneCleared: false, newZoneId: null };
   },
 
   async summonGhost(ghostType, cost) {
