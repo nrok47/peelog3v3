@@ -3,7 +3,7 @@ import { useGameStore } from '../store/gameStore';
 import { GHOST_REG } from '../data/ghosts';
 import Chibi from '../components/Chibi';
 import ScreenHeader from '../components/ScreenHeader';
-import type { Ghost } from '../types';
+import type { Ghost, GhostStats } from '../types';
 
 interface Combatant {
   ghost: Ghost;
@@ -13,31 +13,86 @@ interface Combatant {
   guts: number;
   isPlayer: boolean;
   alive: boolean;
+  boostedStats: GhostStats;
+  gutsMultiplier: number;
+  regenPct: number;
 }
 
 interface LogEntry { text: string; type: 'hit' | 'skill' | 'heal' | 'info' }
 
+// Skill tree → stat bonuses applied before battle
+const SKILL_STAT_BONUSES: Record<string, Partial<GhostStats>> = {
+  atk1: { str: 5  },
+  atk2: { str: 10 },
+  mag1: { mag: 5  },
+  def1: { def: 5  },
+  def2: { def: 10 },
+  hp1:  { hp: 100 },
+  spd1: { spd: 5  },
+};
+
+function getSkillBonuses(ghost: Ghost) {
+  const nodes = ghost.skill_tree?.nodes_taken ?? [];
+  const s = { hp: 0, str: 0, mag: 0, def: 0, spr: 0, spd: 0 };
+  for (const id of nodes) {
+    const b = SKILL_STAT_BONUSES[id];
+    if (!b) continue;
+    if (b.hp)  s.hp  += b.hp;
+    if (b.str) s.str += b.str;
+    if (b.mag) s.mag += b.mag;
+    if (b.def) s.def += b.def;
+    if (b.spr) s.spr += b.spr;
+    if (b.spd) s.spd += b.spd;
+  }
+  return {
+    statBonus:       s,
+    gutsMultiplier:  1 + (nodes.includes('guts1') ? 0.15 : 0) + (nodes.includes('guts2') ? 0.15 : 0),
+    atbStart:        nodes.includes('rush') ? 30 : 0,
+    regenPct:        nodes.includes('regen') ? 0.02 : 0,
+  };
+}
+
 function makeCombatant(ghost: Ghost, isPlayer: boolean): Combatant {
-  const def = GHOST_REG[ghost.ghost_type];
-  const maxHp = ghost.stats?.hp ?? def?.baseStats.hp ?? 1000;
-  return { ghost, currentHp: maxHp, maxHp, atb: 0, guts: 0, isPlayer, alive: true };
+  const def  = GHOST_REG[ghost.ghost_type];
+  const base = ghost.stats ?? def?.baseStats ?? { hp: 1000, str: 30, mag: 20, def: 20, spr: 20, spd: 20 };
+  const { statBonus, gutsMultiplier, atbStart, regenPct } = isPlayer
+    ? getSkillBonuses(ghost)
+    : { statBonus: { hp: 0, str: 0, mag: 0, def: 0, spr: 0, spd: 0 }, gutsMultiplier: 1, atbStart: 0, regenPct: 0 };
+
+  const boostedStats: GhostStats = {
+    hp:  base.hp  + statBonus.hp,
+    str: base.str + statBonus.str,
+    mag: base.mag + statBonus.mag,
+    def: base.def + statBonus.def,
+    spr: base.spr + statBonus.spr,
+    spd: base.spd + statBonus.spd,
+  };
+  return {
+    ghost, currentHp: boostedStats.hp, maxHp: boostedStats.hp,
+    atb: atbStart, guts: 0, isPlayer, alive: true,
+    boostedStats, gutsMultiplier, regenPct,
+  };
 }
 
 const DUMMY_ENEMIES: Ghost[] = [
-  { id: 'e1', ghost_type: 'krasue',    level: 5, stats: { hp:900,  str:15, mag:50, def:18, spr:42, spd:38 } } as Ghost,
-  { id: 'e2', ghost_type: 'phiTaiHong',level: 4, stats: { hp:1400, str:52, mag:15, def:22, spr:15, spd:26 } } as Ghost,
-  { id: 'e3', ghost_type: 'pisaj',     level: 5, stats: { hp:1300, str:45, mag:36, def:28, spr:25, spd:30 } } as Ghost,
+  { id: 'e1', ghost_type: 'krasue',     level: 5, stats: { hp: 900,  str: 15, mag: 50, def: 18, spr: 42, spd: 38 } } as Ghost,
+  { id: 'e2', ghost_type: 'phiTaiHong', level: 4, stats: { hp: 1400, str: 52, mag: 15, def: 22, spr: 15, spd: 26 } } as Ghost,
+  { id: 'e3', ghost_type: 'pisaj',      level: 5, stats: { hp: 1300, str: 45, mag: 36, def: 28, spr: 25, spd: 30 } } as Ghost,
 ];
 
+const AVG_ENEMY_LV = Math.round(DUMMY_ENEMIES.reduce((s, g) => s + g.level, 0) / DUMMY_ENEMIES.length);
+
 export default function Battle() {
-  const { ghosts } = useGameStore();
-  const [phase, setPhase]       = useState<'select' | 'battle' | 'end'>('select');
+  const { ghosts, addBattleRewards } = useGameStore();
+  const [phase, setPhase]             = useState<'select' | 'battle' | 'end'>('select');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [winner, setWinner]     = useState<'player' | 'ai' | null>(null);
-  const [log, setLog]           = useState<LogEntry[]>([]);
-  const [combatants, setCombatants] = useState<Combatant[]>([]);
-  const tickRef = useRef<number | null>(null);
-  const logRef  = useRef<HTMLDivElement>(null);
+  const [winner, setWinner]           = useState<'player' | 'ai' | null>(null);
+  const [log, setLog]                 = useState<LogEntry[]>([]);
+  const [combatants, setCombatants]   = useState<Combatant[]>([]);
+  const [battleRewards, setBattleRewards] = useState<{ expGained: number; levelUps: string[]; dustGained: number } | null>(null);
+  const tickRef        = useRef<number | null>(null);
+  const logRef         = useRef<HTMLDivElement>(null);
+  const rewardDoneRef  = useRef(false);
 
   const playerTeam = ghosts.filter(g => selectedIds.includes(g.id));
   const enemyTeam  = DUMMY_ENEMIES;
@@ -50,6 +105,8 @@ export default function Battle() {
 
   function startBattle() {
     if (playerTeam.length < 3) return;
+    rewardDoneRef.current = false;
+    setBattleRewards(null);
     const initial: Combatant[] = [
       ...playerTeam.slice(0, 3).map(g => makeCombatant(g, true)),
       ...enemyTeam.map(g => makeCombatant(g, false)),
@@ -60,6 +117,15 @@ export default function Battle() {
     setWinner(null);
   }
 
+  // Reward trigger — fires once when player wins
+  useEffect(() => {
+    if (winner !== 'player' || rewardDoneRef.current) return;
+    rewardDoneRef.current = true;
+    addBattleRewards(selectedIds, AVG_ENEMY_LV).then(r => { if (r) setBattleRewards(r); });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [winner]);
+
+  // ATB battle tick
   useEffect(() => {
     if (phase !== 'battle') return;
 
@@ -67,16 +133,16 @@ export default function Battle() {
       setCombatants(prev => {
         const next = prev.map(c => {
           if (!c.alive) return c;
-          const def = GHOST_REG[c.ghost.ghost_type];
-          const spd = c.ghost.stats?.spd ?? def?.baseStats.spd ?? 20;
+          const spd = c.boostedStats.spd;
+          const regenHp = c.regenPct > 0 ? Math.floor(c.maxHp * c.regenPct) : 0;
           return {
             ...c,
-            atb:  Math.min(100, c.atb + spd / 30),
-            guts: Math.min(100, c.guts + spd * 0.02),
+            atb:       Math.min(100, c.atb + spd / 30),
+            guts:      Math.min(100, c.guts + spd * 0.02 * c.gutsMultiplier),
+            currentHp: regenHp > 0 ? Math.min(c.maxHp, c.currentHp + regenHp) : c.currentHp,
           };
         });
 
-        // Find who acts (ATB = 100)
         const actor = next.find(c => c.alive && c.atb >= 100);
         if (!actor) return next;
 
@@ -84,16 +150,16 @@ export default function Battle() {
         if (enemies.length === 0) return next;
 
         const target = enemies[Math.floor(Math.random() * enemies.length)];
-        const def   = GHOST_REG[actor.ghost.ghost_type];
-        const stats = actor.ghost.stats ?? def?.baseStats ?? {};
-        const dmg   = Math.max(1, Math.floor((stats.str ?? 30) * 0.8 + Math.random() * 20 - (target.ghost.stats?.def ?? 20) * 0.4));
+        const dmg    = Math.max(1, Math.floor(
+          actor.boostedStats.str * 0.8
+          + Math.random() * 20
+          - target.boostedStats.def * 0.4
+        ));
 
-        const newLog: LogEntry = {
-          text: `${GHOST_REG[actor.ghost.ghost_type]?.nameTh ?? actor.ghost.ghost_type} โจมตี ${GHOST_REG[target.ghost.ghost_type]?.nameTh ?? target.ghost.ghost_type} (-${dmg} HP)`,
+        setLog(l => [...l.slice(-30), {
+          text: `${GHOST_REG[actor.ghost.ghost_type]?.nameTh} โจมตี ${GHOST_REG[target.ghost.ghost_type]?.nameTh} (-${dmg} HP)`,
           type: 'hit',
-        };
-
-        setLog(l => [...l.slice(-30), newLog]);
+        }]);
 
         const result = next.map(c => {
           if (c.ghost.id === actor.ghost.id) return { ...c, atb: 0 };
@@ -104,17 +170,14 @@ export default function Battle() {
           return c;
         });
 
-        // Check win condition
-        const pAlive = result.filter(c => c.isPlayer  && c.alive).length;
+        const pAlive = result.filter(c =>  c.isPlayer && c.alive).length;
         const eAlive = result.filter(c => !c.isPlayer && c.alive).length;
         if (pAlive === 0 || eAlive === 0) {
           clearInterval(tickRef.current!);
+          const w = pAlive > 0 ? 'player' : 'ai';
           setPhase('end');
-          setWinner(pAlive > 0 ? 'player' : 'ai');
-          setLog(l => [...l, {
-            text: pAlive > 0 ? '🏆 ชนะการต่อสู้!' : '💀 พ่ายแพ้...',
-            type: 'info',
-          }]);
+          setWinner(w);
+          setLog(l => [...l, { text: w === 'player' ? '🏆 ชนะการต่อสู้!' : '💀 พ่ายแพ้...', type: 'info' }]);
         }
 
         return result;
@@ -128,7 +191,7 @@ export default function Battle() {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
   }, [log]);
 
-  const playerSide = combatants.filter(c => c.isPlayer);
+  const playerSide = combatants.filter(c =>  c.isPlayer);
   const enemySide  = combatants.filter(c => !c.isPlayer);
 
   // ── TEAM SELECT PHASE ──────────────────────────────────────────
@@ -188,7 +251,9 @@ export default function Battle() {
                         {ghost.nickname || def.nameTh}
                       </div>
                       <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
-                        Lv.{ghost.level} · {def.classType.toUpperCase()}
+                        Lv.{ghost.level} · {def.classType.toUpperCase()} · {ghost.stat_points > 0 && (
+                          <span style={{ color: 'var(--gold)' }}>{ghost.stat_points}pt</span>
+                        )}
                       </div>
                       <div className="bar-track thin" style={{ marginTop: 4 }}>
                         <div className="bar-fill bar-hp" style={{ width: '100%' }} />
@@ -219,20 +284,16 @@ export default function Battle() {
     <div className="screen fade-in" style={{ paddingBottom: 0 }}>
       <ScreenHeader title="⚔️ Battle" back="/home" />
 
-      <div style={{
-        flex: 1, display: 'flex', flexDirection: 'column',
-        padding: '10px 12px', gap: 8, minHeight: 0,
-      }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '10px 12px', gap: 8, minHeight: 0 }}>
         {/* Enemy team */}
         <div>
           <div className="label-sm" style={{ marginBottom: 6, color: 'var(--red)' }}>💀 ฝ่ายศัตรู</div>
           <div style={{ display: 'flex', gap: 6 }}>
-            {enemySide.map((com) => {
-              const g   = com.ghost;
-              const def = GHOST_REG[g.ghost_type];
+            {enemySide.map(com => {
+              const def = GHOST_REG[com.ghost.ghost_type];
               if (!def) return null;
               return (
-                <div key={g.id} style={{
+                <div key={com.ghost.id} style={{
                   flex: 1, background: !com.alive ? 'rgba(255,255,255,0.03)' : 'var(--bg-card)',
                   border: '1px solid rgba(255,71,87,0.2)', borderRadius: 'var(--r-lg)',
                   padding: '8px 6px', display: 'flex', flexDirection: 'column',
@@ -243,11 +304,9 @@ export default function Battle() {
                   <div className="bar-track thin" style={{ width: '100%' }}>
                     <div className="bar-fill bar-hp" style={{ width: `${(com.currentHp / com.maxHp) * 100}%` }} />
                   </div>
-                  {com && (
-                    <div className="bar-track thin" style={{ width: '100%' }}>
-                      <div className="bar-fill bar-atb" style={{ width: `${com.atb}%` }} />
-                    </div>
-                  )}
+                  <div className="bar-track thin" style={{ width: '100%' }}>
+                    <div className="bar-fill bar-atb" style={{ width: `${com.atb}%` }} />
+                  </div>
                 </div>
               );
             })}
@@ -256,107 +315,123 @@ export default function Battle() {
 
         {/* Battle log */}
         <div style={{
-          flex: 1,
-          background: 'var(--bg-card)',
-          borderRadius: 'var(--r-lg)',
-          border: '1px solid rgba(255,255,255,0.07)',
-          padding: '10px',
-          display: 'flex',
-          flexDirection: 'column',
-          minHeight: 80,
-          maxHeight: 140,
-          overflow: 'hidden',
+          flex: 1, background: 'var(--bg-card)', borderRadius: 'var(--r-lg)',
+          border: '1px solid rgba(255,255,255,0.07)', padding: '10px',
+          display: 'flex', flexDirection: 'column', minHeight: 80, maxHeight: 140, overflow: 'hidden',
         }}>
           <div ref={logRef} style={{ overflowY: 'auto', flex: 1 }}>
-              {log.map((entry, i) => (
-                <div key={i} style={{
-                  fontSize: 11,
-                  color: entry.type === 'info' ? 'var(--gold)' : entry.type === 'heal' ? 'var(--green)' : 'var(--text-light)',
-                  marginBottom: 2,
-                  fontFamily: entry.type === 'info' ? 'Bai Jamjuree, sans-serif' : 'inherit',
-                  fontWeight: entry.type === 'info' ? 700 : 400,
-                }}>
-                  {entry.text}
-                </div>
-              ))}
-            </div>
+            {log.map((entry, i) => (
+              <div key={i} style={{
+                fontSize: 11, marginBottom: 2,
+                color: entry.type === 'info' ? 'var(--gold)' : entry.type === 'heal' ? 'var(--green)' : 'var(--text-light)',
+                fontFamily: entry.type === 'info' ? 'Bai Jamjuree, sans-serif' : 'inherit',
+                fontWeight: entry.type === 'info' ? 700 : 400,
+              }}>
+                {entry.text}
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Player team */}
         <div>
           <div className="label-sm" style={{ marginBottom: 6, color: 'var(--green)' }}>⚔️ ทีมของคุณ</div>
           <div style={{ display: 'flex', gap: 6 }}>
-              {playerSide.map((com) => {
-                const g   = com.ghost;
-                const def = GHOST_REG[g.ghost_type];
-                if (!def) return null;
-                return (
-                  <div key={g.id} style={{
-                    flex: 1,
-                    background: com && !com.alive ? 'rgba(255,255,255,0.03)' : 'linear-gradient(135deg, rgba(38,222,129,0.08), var(--bg-card))',
-                    border: '1px solid rgba(38,222,129,0.2)',
-                    borderRadius: 'var(--r-lg)',
-                    padding: '8px 6px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: 5,
-                    opacity: com && !com.alive ? 0.35 : 1,
-                    transition: 'opacity 0.3s',
-                  }}>
-                    <Chibi emoji={def.emoji} element={def.element} size={42} evoStage={g.evo_stage} />
-                    <div style={{ fontSize: 10, fontWeight: 700, textAlign: 'center' }}>{g.nickname || def.nameTh}</div>
-                    <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'JetBrains Mono, monospace' }}>
-                      {com.currentHp}/{com.maxHp}
-                    </div>
-                    <div className="bar-track thin" style={{ width: '100%' }}>
-                      <div className={`bar-fill ${(com.currentHp / com.maxHp) < 0.3 ? 'bar-hp-low' : 'bar-hp'}`}
-                        style={{ width: `${(com.currentHp / com.maxHp) * 100}%` }} />
-                    </div>
-                    <div className="bar-track thin" style={{ width: '100%' }}>
-                      <div className="bar-fill bar-atb" style={{ width: `${com.atb}%` }} />
-                    </div>
-                    <div className="bar-track thin" style={{ width: '100%' }}>
-                      <div className="bar-fill bar-guts" style={{ width: `${com.guts}%` }} />
-                    </div>
+            {playerSide.map(com => {
+              const def = GHOST_REG[com.ghost.ghost_type];
+              if (!def) return null;
+              return (
+                <div key={com.ghost.id} style={{
+                  flex: 1,
+                  background: !com.alive ? 'rgba(255,255,255,0.03)' : 'linear-gradient(135deg, rgba(38,222,129,0.08), var(--bg-card))',
+                  border: '1px solid rgba(38,222,129,0.2)', borderRadius: 'var(--r-lg)',
+                  padding: '8px 6px', display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', gap: 5, opacity: !com.alive ? 0.35 : 1, transition: 'opacity 0.3s',
+                }}>
+                  <Chibi emoji={def.emoji} element={def.element} size={42} evoStage={com.ghost.evo_stage} />
+                  <div style={{ fontSize: 10, fontWeight: 700, textAlign: 'center' }}>{com.ghost.nickname || def.nameTh}</div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'JetBrains Mono, monospace' }}>
+                    {com.currentHp}/{com.maxHp}
                   </div>
-                );
-              })}
-            </div>
+                  <div className="bar-track thin" style={{ width: '100%' }}>
+                    <div className={`bar-fill ${(com.currentHp / com.maxHp) < 0.3 ? 'bar-hp-low' : 'bar-hp'}`}
+                      style={{ width: `${(com.currentHp / com.maxHp) * 100}%` }} />
+                  </div>
+                  <div className="bar-track thin" style={{ width: '100%' }}>
+                    <div className="bar-fill bar-atb" style={{ width: `${com.atb}%` }} />
+                  </div>
+                  <div className="bar-track thin" style={{ width: '100%' }}>
+                    <div className="bar-fill bar-guts" style={{ width: `${com.guts}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
-        {/* Action button */}
+        {/* Action / end */}
         <div style={{ paddingBottom: 12 }}>
           {phase === 'battle' && (
             <div style={{
-              textAlign: 'center',
-              color: 'var(--text-muted)',
-              fontSize: 13,
-              padding: '12px',
-              background: 'var(--bg-card)',
-              borderRadius: 'var(--r-lg)',
+              textAlign: 'center', color: 'var(--text-muted)', fontSize: 13,
+              padding: '12px', background: 'var(--bg-card)', borderRadius: 'var(--r-lg)',
             }}>
               <span className="pulse">⏳ กำลังต่อสู้ (Auto ATB)...</span>
             </div>
           )}
+
           {phase === 'end' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {/* Win/lose banner */}
               <div style={{
-                textAlign: 'center',
-                padding: '14px',
+                textAlign: 'center', padding: '14px',
                 background: winner === 'player'
                   ? 'linear-gradient(135deg, rgba(38,222,129,0.15), rgba(38,222,129,0.05))'
                   : 'linear-gradient(135deg, rgba(255,71,87,0.15), rgba(255,71,87,0.05))',
                 border: `1.5px solid ${winner === 'player' ? 'rgba(38,222,129,0.4)' : 'rgba(255,71,87,0.4)'}`,
-                borderRadius: 'var(--r-lg)',
-                fontSize: 20,
-                fontWeight: 700,
+                borderRadius: 'var(--r-lg)', fontSize: 20, fontWeight: 700,
                 fontFamily: 'Bai Jamjuree, sans-serif',
               }}>
                 {winner === 'player' ? '🏆 ชนะแล้ว!' : '💀 พ่ายแพ้...'}
               </div>
+
+              {/* Rewards box */}
+              {winner === 'player' && battleRewards && (
+                <div style={{
+                  background: 'rgba(245,197,24,0.07)',
+                  border: '1px solid rgba(245,197,24,0.25)',
+                  borderRadius: 'var(--r-lg)', padding: '12px 14px',
+                  display: 'flex', flexDirection: 'column', gap: 4,
+                }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gold)', marginBottom: 2 }}>
+                    ✨ รางวัลการต่อสู้
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-light)', display: 'flex', gap: 16 }}>
+                    <span>⚡ EXP +{battleRewards.expGained} ต่อตัว</span>
+                    <span>🌀 +{battleRewards.dustGained} ฝุ่น</span>
+                    <span>💞 Bond +2</span>
+                  </div>
+                  {battleRewards.levelUps.length > 0 && (
+                    <div style={{ marginTop: 4 }}>
+                      {battleRewards.levelUps.map((ghostType, i) => (
+                        <div key={i} style={{
+                          fontSize: 12, fontWeight: 700, color: 'var(--gold)',
+                          animation: 'popIn 0.4s ease-out',
+                        }}>
+                          🎉 {GHOST_REG[ghostType]?.nameTh ?? ghostType} เลเวลอัพ! (+3 Skill Points)
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {winner === 'player' && !battleRewards && (
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>กำลังบันทึกรางวัล...</div>
+              )}
+
               <button type="button" className="btn btn-gold btn-full"
-                onClick={() => { setPhase('select'); setSelectedIds([]); setCombatants([]); setLog([]); }}>
+                onClick={() => { setPhase('select'); setSelectedIds([]); setCombatants([]); setLog([]); setWinner(null); setBattleRewards(null); }}>
                 🔄 เลือกทีมใหม่
               </button>
             </div>

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Ghost, GameState } from '../types';
+import type { Ghost, GameState, Decision } from '../types';
 import { db, Auth, GhostService, SaveService } from '../db/supabase';
 import { GHOST_LIST } from '../data/ghosts';
 
@@ -13,6 +13,8 @@ interface GameStore extends GameState {
   setTeam: (slots: { ghostId: string; slot: number }[]) => void;
   addSpiritDust: (amount: number) => void;
   summonGhost: (ghostType: string, cost: number) => Promise<Ghost>;
+  addBattleRewards: (playerGhostIds: string[], avgEnemyLevel: number) => Promise<{ expGained: number; levelUps: string[]; dustGained: number }>;
+  applyAdventureChoice: (eventId: string, choiceId: string, corruptionDelta: number, dustReward: number, bondGain: number) => Promise<void>;
   passiveDustEarned: number;  // dust earned this session (for notification)
 }
 
@@ -115,6 +117,93 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set(state => ({
       player: state.player ? { ...state.player, spirit_dust: state.player.spirit_dust + amount } : null,
     }));
+  },
+
+  async addBattleRewards(playerGhostIds, avgEnemyLevel) {
+    const { ghosts, player } = get();
+    if (!player) return { expGained: 0, levelUps: [], dustGained: 0 };
+
+    const EXP_PER_BATTLE = avgEnemyLevel * 15;
+    const DUST_REWARD    = Math.floor(avgEnemyLevel * 2);
+    const BOND_GAIN      = 2;
+    const levelUps: string[] = [];
+
+    type Update = { ghostId: string; changes: Partial<Ghost> };
+    const updates: Update[] = [];
+
+    for (const ghostId of playerGhostIds) {
+      const g = ghosts.find(g => g.id === ghostId);
+      if (!g) continue;
+      const changes: Partial<Ghost> = { bond: Math.min(100, g.bond + BOND_GAIN) };
+      if (g.level < 30) {
+        const newExp    = g.exp + EXP_PER_BATTLE;
+        const expNeeded = g.level * 80;
+        if (newExp >= expNeeded) {
+          changes.exp         = newExp - expNeeded;
+          changes.level       = g.level + 1;
+          changes.stat_points = g.stat_points + 3;
+          levelUps.push(g.ghost_type);
+        } else {
+          changes.exp = newExp;
+        }
+      }
+      updates.push({ ghostId, changes });
+    }
+
+    await Promise.all(updates.map(u => GhostService.update(u.ghostId, u.changes)));
+    const newDust = player.spirit_dust + DUST_REWARD;
+    await db.from('players').update({ spirit_dust: newDust }).eq('id', player.id);
+
+    set(state => ({
+      player: state.player ? { ...state.player, spirit_dust: newDust } : null,
+      ghosts: state.ghosts.map(g => {
+        const upd = updates.find(u => u.ghostId === g.id);
+        return upd ? { ...g, ...upd.changes } : g;
+      }),
+      team: state.team.map(g => {
+        const upd = updates.find(u => u.ghostId === g.id);
+        return upd ? { ...g, ...upd.changes } : g;
+      }),
+    }));
+
+    return { expGained: EXP_PER_BATTLE, levelUps, dustGained: DUST_REWARD };
+  },
+
+  async applyAdventureChoice(eventId, choiceId, corruptionDelta, dustReward, bondGain) {
+    const { save, player, team } = get();
+    if (!player) return;
+
+    if (save && corruptionDelta !== 0) {
+      const decision: Decision = { node_id: eventId, choice: choiceId, corruption_delta: corruptionDelta };
+      await SaveService.addDecision(save.id, save.decisions, decision);
+      set(state => ({
+        save: state.save ? {
+          ...state.save,
+          corruption_score: Math.min(100, Math.max(0, state.save.corruption_score + corruptionDelta)),
+          decisions: [...state.save.decisions, decision],
+        } : null,
+      }));
+    }
+
+    if (dustReward > 0) {
+      const newDust = player.spirit_dust + dustReward;
+      await db.from('players').update({ spirit_dust: newDust }).eq('id', player.id);
+      set(state => ({
+        player: state.player ? { ...state.player, spirit_dust: newDust } : null,
+      }));
+    }
+
+    if (bondGain > 0 && team.length > 0) {
+      await Promise.all(team.map(g =>
+        GhostService.update(g.id, { bond: Math.min(100, g.bond + bondGain) })
+      ));
+      set(state => ({
+        ghosts: state.ghosts.map(g =>
+          team.some(t => t.id === g.id) ? { ...g, bond: Math.min(100, g.bond + bondGain) } : g
+        ),
+        team: state.team.map(g => ({ ...g, bond: Math.min(100, g.bond + bondGain) })),
+      }));
+    }
   },
 
   async summonGhost(ghostType, cost) {
