@@ -162,7 +162,7 @@ export default function Home() {
                     </div>
                     <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Lv.{g.level}</div>
                     <div className="bar-track thin" style={{ width: '100%' }}>
-                      <div className="bar-fill bar-hp" style={{ width: `${(g.stats.hp / (def.baseStats.hp * 1.5)) * 100}%` }} />
+                      <div className="bar-fill bar-hp" style={{ width: `${Math.min(100, ((g.stats?.hp ?? def.baseStats.hp) / def.baseStats.hp) * 100)}%` }} />
                     </div>
                   </div>
                 );

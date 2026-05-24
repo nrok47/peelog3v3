@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import {
@@ -25,20 +25,22 @@ export default function Roster() {
   const [summonPhase, setSummonPhase] = useState<'select' | 'spinning' | 'reveal'>('select');
   const [summonResult, setSummonResult] = useState<{ ghostType: string; rarity: string } | null>(null);
   const [summonErr, setSummonErr] = useState('');
+  const summonTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function openSummon() {
+    if (summonTimerRef.current) clearTimeout(summonTimerRef.current);
     setSummonPhase('select');
     setSummonResult(null);
     setSummonErr('');
     setShowSummon(true);
   }
 
-  async function handleSummon() {
+  function handleSummon() {
+    if (summonPhase === 'spinning') return;
     const cost = POOL_COST[selectedPool];
     setSummonPhase('spinning');
     setSummonErr('');
-    // Wait 1.5s animation then reveal
-    setTimeout(async () => {
+    summonTimerRef.current = setTimeout(async () => {
       try {
         const rarity = rollRarity(selectedPool);
         const ghostType = pickGhostByRarity(rarity);

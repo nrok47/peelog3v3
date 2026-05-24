@@ -94,14 +94,7 @@ export const GhostService = {
     }
   },
 
-  async enhanceFrame(ghostId: string, currentLevel: number): Promise<void> {
-    const cost = (currentLevel + 1) * 150;
-    await db.from('ghosts').update({
-      frame: db.rpc as unknown as object,
-    }).eq('id', ghostId);
-    // handled client-side with update()
-    void cost;
-  },
+
 };
 
 // ── SAVE SERVICE ──────────────────────────────────────────────
