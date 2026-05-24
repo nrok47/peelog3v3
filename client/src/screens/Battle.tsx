@@ -104,7 +104,7 @@ export default function Battle() {
   }
 
   function startBattle() {
-    if (playerTeam.length < 3) return;
+    if (playerTeam.length < 1) return;
     rewardDoneRef.current = false;
     setBattleRewards(null);
     const initial: Combatant[] = [
@@ -268,11 +268,11 @@ export default function Battle() {
           <button
             type="button"
             className="btn btn-red btn-full btn-lg"
-            disabled={selectedIds.length < 3}
+            disabled={selectedIds.length < 1}
             onClick={startBattle}
-            style={{ opacity: selectedIds.length < 3 ? 0.5 : 1 }}
+            style={{ opacity: selectedIds.length < 1 ? 0.5 : 1 }}
           >
-            {selectedIds.length < 3 ? `เลือกผีอีก ${3 - selectedIds.length} ตัว` : '⚔️ เริ่มต่อสู้!'}
+            {selectedIds.length < 1 ? 'เลือกผีอย่างน้อย 1 ตัว' : `⚔️ เริ่มต่อสู้! (${selectedIds.length} ตัว)`}
           </button>
         </div>
       </div>
