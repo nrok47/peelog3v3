@@ -6,6 +6,25 @@ import Chibi from '../components/Chibi';
 import ScreenHeader from '../components/ScreenHeader';
 import type { Ghost, GhostStats } from '../types';
 
+interface AttackAnim {
+  key: number;
+  attackerGhostId: string;
+  targetGhostId: string;
+  fromPlayer: boolean;   // true = player attacks enemy (orb goes up)
+  fromIdx: number;       // attacker's index in their side
+  fromCount: number;     // total on attacker's side
+  element: string;
+}
+
+const ELEMENT_COLORS: Record<string, string> = {
+  fire: '#ff4757', water: '#4d9fff', wood: '#26de81', earth: '#fd9644',
+  metal: '#eccc68', dark: '#a55eea', light: '#f5c518',
+};
+const ELEMENT_EMOJI: Record<string, string> = {
+  fire: '🔥', water: '💧', wood: '🌿', earth: '💥',
+  metal: '⚡', dark: '💜', light: '✨',
+};
+
 interface Combatant {
   ghost: Ghost;
   currentHp: number;
@@ -84,9 +103,17 @@ export default function Battle() {
   const [combatants, setCombatants]   = useState<Combatant[]>([]);
   const [enemyGhosts, setEnemyGhosts] = useState<Ghost[]>([]);
   const [battleRewards, setBattleRewards] = useState<{ expGained: number; levelUps: string[]; dustGained: number; zoneCleared: boolean } | null>(null);
+  const [attackAnim, setAttackAnim] = useState<AttackAnim | null>(null);
   const tickRef       = useRef<number | null>(null);
   const logRef        = useRef<HTMLDivElement>(null);
   const rewardDoneRef = useRef(false);
+
+  // Auto-clear attack animation after it plays
+  useEffect(() => {
+    if (!attackAnim) return;
+    const t = setTimeout(() => setAttackAnim(null), 420);
+    return () => clearTimeout(t);
+  }, [attackAnim?.key]);
 
   const zone      = getZoneDef(save?.zone_id ?? 'zone_01');
   const stepsDone = save?.steps_taken ?? 0;
@@ -177,6 +204,19 @@ export default function Battle() {
           text: `${GHOST_REG[actor.ghost.ghost_type]?.nameTh} โจมตี ${GHOST_REG[target.ghost.ghost_type]?.nameTh} (-${dmg})`,
           type: 'hit',
         }]);
+
+        // Fire attack animation
+        const attackerSide = next.filter(c => c.isPlayer === actor.isPlayer);
+        const fromIdx = attackerSide.findIndex(c => c.ghost.id === actor.ghost.id);
+        setAttackAnim({
+          key: Date.now(),
+          attackerGhostId: actor.ghost.id,
+          targetGhostId:   target.ghost.id,
+          fromPlayer:      actor.isPlayer,
+          fromIdx:         fromIdx < 0 ? 0 : fromIdx,
+          fromCount:       attackerSide.length,
+          element:         GHOST_REG[actor.ghost.ghost_type]?.element ?? 'dark',
+        });
 
         const result = next.map(c => {
           if (c.ghost.id === actor.ghost.id) return { ...c, atb: 0 };
@@ -369,7 +409,46 @@ export default function Battle() {
     <div className="screen fade-in" style={{ paddingBottom: 0 }}>
       <ScreenHeader title={`⚔️ ${isBoss ? '👑 BOSS — ' : ''}${zone.name}`} back="/home" />
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '10px 12px', gap: 8, minHeight: 0 }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '10px 12px', gap: 8, minHeight: 0, position: 'relative' }}>
+
+        {/* ── Attack projectile overlay ── */}
+        {attackAnim && phase === 'battle' && (() => {
+          const color   = ELEMENT_COLORS[attackAnim.element] ?? '#fff';
+          const emoji   = ELEMENT_EMOJI[attackAnim.element] ?? '✦';
+          const leftPct = ((attackAnim.fromIdx + 0.5) / attackAnim.fromCount) * 100;
+          const anim    = attackAnim.fromPlayer ? 'projUp' : 'projDown';
+          // Player is at bottom (~70% from top), enemy at top (~12%)
+          const topPct  = attackAnim.fromPlayer ? 70 : 12;
+          return (
+            <div
+              key={attackAnim.key}
+              style={{
+                position: 'absolute',
+                top: `${topPct}%`,
+                left: `${leftPct}%`,
+                width: 32, height: 32,
+                pointerEvents: 'none',
+                zIndex: 50,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                animation: `${anim} 0.38s ease-out forwards`,
+              }}
+            >
+              {/* Glow orb */}
+              <div style={{
+                position: 'absolute',
+                width: 32, height: 32,
+                borderRadius: '50%',
+                background: color,
+                opacity: 0.55,
+                filter: `blur(6px)`,
+                boxShadow: `0 0 12px ${color}, 0 0 24px ${color}`,
+              }} />
+              {/* Emoji */}
+              <span style={{ fontSize: 16, position: 'relative', zIndex: 1 }}>{emoji}</span>
+            </div>
+          );
+        })()}
+
         {/* Enemy team */}
         <div>
           <div className="label-sm" style={{ marginBottom: 6, color: 'var(--red)' }}>💀 ฝ่ายศัตรู</div>
@@ -377,12 +456,15 @@ export default function Battle() {
             {enemySide.map(com => {
               const def = GHOST_REG[com.ghost.ghost_type];
               if (!def) return null;
+              const isAttacking = attackAnim?.attackerGhostId === com.ghost.id;
+              const isHit       = attackAnim?.targetGhostId   === com.ghost.id;
               return (
                 <div key={com.ghost.id} style={{
                   flex: 1, background: !com.alive ? 'rgba(255,255,255,0.03)' : 'var(--bg-card)',
                   border: '1px solid rgba(255,71,87,0.2)', borderRadius: 'var(--r-lg)',
                   padding: '8px 6px', display: 'flex', flexDirection: 'column',
                   alignItems: 'center', gap: 5, opacity: !com.alive ? 0.35 : 1, transition: 'opacity 0.3s',
+                  animation: isAttacking ? 'cardAttack 0.32s ease-out' : isHit ? 'cardHit 0.38s ease-out' : 'none',
                 }}>
                   <Chibi emoji={def.emoji} element={def.element} size={42} />
                   <div style={{ fontSize: 10, fontWeight: 700, textAlign: 'center' }}>{def.nameTh}</div>
@@ -429,6 +511,8 @@ export default function Battle() {
             {playerSide.map(com => {
               const def = GHOST_REG[com.ghost.ghost_type];
               if (!def) return null;
+              const isAttacking = attackAnim?.attackerGhostId === com.ghost.id;
+              const isHit       = attackAnim?.targetGhostId   === com.ghost.id;
               return (
                 <div key={com.ghost.id} style={{
                   flex: 1,
@@ -436,6 +520,7 @@ export default function Battle() {
                   border: '1px solid rgba(38,222,129,0.2)', borderRadius: 'var(--r-lg)',
                   padding: '8px 6px', display: 'flex', flexDirection: 'column',
                   alignItems: 'center', gap: 5, opacity: !com.alive ? 0.35 : 1, transition: 'opacity 0.3s',
+                  animation: isAttacking ? 'cardAttack 0.32s ease-out' : isHit ? 'cardHit 0.38s ease-out' : 'none',
                 }}>
                   <Chibi emoji={def.emoji} element={def.element} size={42} evoStage={com.ghost.evo_stage} />
                   <div style={{ fontSize: 10, fontWeight: 700, textAlign: 'center' }}>{com.ghost.nickname || def.nameTh}</div>
