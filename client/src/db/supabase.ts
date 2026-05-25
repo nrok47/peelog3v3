@@ -141,7 +141,11 @@ export const SaveService = {
 // ── LEADERBOARD ───────────────────────────────────────────────
 export const LeaderboardService = {
   async getTop(limit = 20) {
-    const { data } = await db.from('leaderboard').select('*').order('score', { ascending: false }).limit(limit);
+    const { data } = await db.from('leaderboard')
+      .select('*')
+      .eq('season', '2026-S1')
+      .order('score', { ascending: false })
+      .limit(limit);
     return data ?? [];
   },
 
@@ -193,6 +197,8 @@ export const LeaderboardService = {
       .select('id, score')
       .eq('player_id', playerId)
       .eq('season', '2026-S1')
+      .order('score', { ascending: false })
+      .limit(1)
       .maybeSingle();
     if (existing) {
       if (score > (existing.score ?? 0)) {

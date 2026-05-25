@@ -234,16 +234,16 @@ export default function Battle() {
   const [winner, setWinner]           = useState<'player' | 'ai' | null>(null);
   const [log, setLog]                 = useState<LogEntry[]>([]);
   const [combatants, setCombatants]   = useState<Combatant[]>([]);
-  const [enemyGhosts, setEnemyGhosts] = useState<Ghost[]>([]);
   const [battleRewards, setBattleRewards] = useState<{ expGained: number; levelUps: string[]; dustGained: number; zoneCleared: boolean } | null>(null);
   const [arenaScore, setArenaScore]         = useState(0);
   const [opponent, setOpponent]             = useState<{ username: string; team: Ghost[] } | null>(null);
   const [exorcistGauge, setExorcistGauge]   = useState(0);
   const [attackAnim, setAttackAnim]         = useState<AttackAnim | null>(null);
-  const tickRef       = useRef<number | null>(null);
-  const logRef        = useRef<HTMLDivElement>(null);
-  const rewardDoneRef = useRef(false);
-  const gaugeRef      = useRef(0);
+  const tickRef         = useRef<number | null>(null);
+  const logRef          = useRef<HTMLDivElement>(null);
+  const rewardDoneRef   = useRef(false);
+  const gaugeRef        = useRef(0);
+  const enemyGhostsRef  = useRef<Ghost[]>([]);
 
   // Arena mode: auto-select current team
   useEffect(() => {
@@ -298,20 +298,28 @@ export default function Battle() {
       ? Math.round(playerTeam.reduce((s, g) => s + g.level, 0) / playerTeam.length)
       : 1;
     let enemies: Ghost[];
+    let isPvpTeam = false;
     if (arenaMode) {
       const validOpponentTeam = (opponent?.team ?? []).filter(g => GHOST_REG[g.ghost_type]);
-      enemies = validOpponentTeam.length > 0
-        ? validOpponentTeam.slice(0, playerTeam.length).map((g, i) => ({ ...g, id: `arena_pvp_${i}`, player_id: 'pvp' }))
-        : buildArenaEnemies(avgTeamLv, playerTeam.length);
+      if (validOpponentTeam.length > 0) {
+        enemies = validOpponentTeam.slice(0, playerTeam.length).map((g, i) => ({ ...g, id: `arena_pvp_${i}`, player_id: 'pvp' }));
+        isPvpTeam = true;
+      } else {
+        enemies = buildArenaEnemies(avgTeamLv, playerTeam.length);
+      }
     } else {
       enemies = buildZoneEnemies(zone, stepsDone, playerTeam.length);
     }
-    setEnemyGhosts(enemies);
+    enemyGhostsRef.current = enemies;
 
     const fieldAmulets = player?.inventory?.field_amulets ?? [null, null, null];
     const initial: Combatant[] = [
       ...playerTeam.slice(0, 3).map((g, idx) => makeCombatant(g, true, fieldAmulets[idx])),
-      ...enemies.map(g => makeCombatant(g, false)),
+      // PvP: apply full stat boosts from opponent's evo/frame/affixes, but mark as enemy side
+      ...enemies.map(g => isPvpTeam
+        ? { ...makeCombatant(g, true, null), isPlayer: false }
+        : makeCombatant(g, false)
+      ),
     ];
     setCombatants(initial);
     setLog([{ text: arenaMode
@@ -327,8 +335,9 @@ export default function Battle() {
     if (winner !== 'player' || rewardDoneRef.current) return;
     rewardDoneRef.current = true;
 
-    const avgEnemyLv = enemyGhosts.length > 0
-      ? Math.round(enemyGhosts.reduce((s, g) => s + g.level, 0) / enemyGhosts.length)
+    const snapshotEnemies = enemyGhostsRef.current;
+    const avgEnemyLv = snapshotEnemies.length > 0
+      ? Math.round(snapshotEnemies.reduce((s, g) => s + g.level, 0) / snapshotEnemies.length)
       : zone.bossLevel;
 
     if (arenaMode) {
@@ -620,7 +629,7 @@ export default function Battle() {
     setPhase('select');
     setSelectedIds([]);
     setCombatants([]);
-    setEnemyGhosts([]);
+    enemyGhostsRef.current = [];
     setLog([]);
     setWinner(null);
     setBattleRewards(null);
