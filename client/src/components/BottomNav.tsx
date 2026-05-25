@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 const NAV_ITEMS = [
   { path: '/home',    icon: '🏠', label: 'หน้าหลัก' },
   { path: '/roster',  icon: '👻', label: 'ทีม' },
-  { path: '/battle',  icon: '⚔️', label: 'ต่อสู้' },
+  { path: '/arena',   icon: '🏆', label: 'สนามรบ' },
   { path: '/map',     icon: '🗺️', label: 'แผนที่' },
   { path: '/upgrade', icon: '🔧', label: 'อัปเกรด' },
 ];

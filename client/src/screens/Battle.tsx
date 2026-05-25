@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { GHOST_REG, ELEMENT_CHART } from '../data/ghosts';
 import { ZONE_DEFS, getZoneDef, getZoneIndex, buildZoneEnemies } from '../data/zones';
@@ -197,8 +198,36 @@ function getAnimState(com: Combatant, attackAnim: AttackAnim | null): AnimState 
   return 'idle';
 }
 
+function buildArenaEnemies(teamAvgLevel: number, count: number): import('../types').Ghost[] {
+  const types = Object.keys(GHOST_REG);
+  const picked = [...types].sort(() => Math.random() - 0.5).slice(0, Math.max(1, count));
+  return picked.map((type, i) => {
+    const def = GHOST_REG[type];
+    const lvl = Math.max(1, teamAvgLevel + Math.floor(Math.random() * 6) - 2);
+    const scale = 1 + (lvl - 1) * 0.05;
+    const base = def.baseStats;
+    return {
+      id: `arena_ai_${i}`, player_id: 'arena', ghost_type: type, nickname: '',
+      evo_stage: 0 as const, level: lvl, exp: 0, bond: 0, corruption: 0, stat_points: 0,
+      stats: {
+        hp:  Math.round(base.hp  * scale), str: Math.round(base.str * scale),
+        mag: Math.round(base.mag * scale), def: Math.round(base.def * scale),
+        spr: Math.round(base.spr * scale), spd: base.spd,
+      },
+      soul_core:   { element: def.element, classType: def.classType, baseStats: base },
+      frame:       { enhancement: 0, base_def: base.def, base_spr: base.spr, sockets: [] },
+      spirit_mass: { affixes: [], tier_history: [] },
+      skill_tree:  { points_spent: 0, nodes_taken: [], branches: { offense: 0, resource: 0, defense: 0 } },
+      is_in_team: false, team_slot: null,
+    };
+  });
+}
+
 export default function Battle() {
-  const { ghosts, player, save, addBattleRewards, advanceZoneStep } = useGameStore();
+  const { ghosts, team, player, save, addBattleRewards, advanceZoneStep } = useGameStore();
+  const navigate  = useNavigate();
+  const location  = useLocation();
+  const arenaMode = (location.state as { arenaMode?: boolean } | null)?.arenaMode ?? false;
   const [phase, setPhase]             = useState<'select' | 'battle' | 'end'>('select');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [winner, setWinner]           = useState<'player' | 'ai' | null>(null);
@@ -206,10 +235,19 @@ export default function Battle() {
   const [combatants, setCombatants]   = useState<Combatant[]>([]);
   const [enemyGhosts, setEnemyGhosts] = useState<Ghost[]>([]);
   const [battleRewards, setBattleRewards] = useState<{ expGained: number; levelUps: string[]; dustGained: number; zoneCleared: boolean } | null>(null);
+  const [arenaScore, setArenaScore] = useState(0);
   const [attackAnim, setAttackAnim] = useState<AttackAnim | null>(null);
   const tickRef       = useRef<number | null>(null);
   const logRef        = useRef<HTMLDivElement>(null);
   const rewardDoneRef = useRef(false);
+
+  // Arena mode: auto-select current team
+  useEffect(() => {
+    if (arenaMode && team.length > 0 && selectedIds.length === 0) {
+      setSelectedIds(team.slice(0, 3).map(g => g.id));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [arenaMode]);
 
   // Auto-clear attack animation after it plays
   useEffect(() => {
@@ -238,8 +276,13 @@ export default function Battle() {
     rewardDoneRef.current = false;
     setBattleRewards(null);
 
-    // Generate zone enemies for this step
-    const enemies = buildZoneEnemies(zone, stepsDone, playerTeam.length);
+    // Generate enemies (arena = random AI, story = zone-based)
+    const avgTeamLv = playerTeam.length > 0
+      ? Math.round(playerTeam.reduce((s, g) => s + g.level, 0) / playerTeam.length)
+      : 1;
+    const enemies = arenaMode
+      ? buildArenaEnemies(avgTeamLv, playerTeam.length)
+      : buildZoneEnemies(zone, stepsDone, playerTeam.length);
     setEnemyGhosts(enemies);
 
     const fieldAmulets = player?.inventory?.field_amulets ?? [null, null, null];
@@ -248,7 +291,10 @@ export default function Battle() {
       ...enemies.map(g => makeCombatant(g, false)),
     ];
     setCombatants(initial);
-    setLog([{ text: `⚔️ ${isBoss ? '👑 BOSS FIGHT! ' : ''}การต่อสู้เริ่มต้น — ${zone.name} (${stepsDone + 1}/${zone.steps})`, type: 'info' }]);
+    setLog([{ text: arenaMode
+      ? `🏆 Arena Battle เริ่ม! ทีม AI กำลังมา...`
+      : `⚔️ ${isBoss ? '👑 BOSS FIGHT! ' : ''}การต่อสู้เริ่มต้น — ${zone.name} (${stepsDone + 1}/${zone.steps})`,
+      type: 'info' }]);
     setPhase('battle');
     setWinner(null);
   }
@@ -262,14 +308,24 @@ export default function Battle() {
       ? Math.round(enemyGhosts.reduce((s, g) => s + g.level, 0) / enemyGhosts.length)
       : zone.bossLevel;
 
-    Promise.all([
-      addBattleRewards(selectedIds, avgEnemyLv),
-      advanceZoneStep(),
-    ]).then(([rewards, zoneResult]) => {
-      if (rewards) {
-        setBattleRewards({ ...rewards, zoneCleared: zoneResult?.zoneCleared ?? false });
-      }
-    });
+    if (arenaMode) {
+      addBattleRewards(selectedIds, avgEnemyLv).then(rewards => {
+        if (rewards) {
+          const sc = avgEnemyLv * 50 + rewards.dustGained * 2;
+          setArenaScore(sc);
+          setBattleRewards({ ...rewards, zoneCleared: false });
+        }
+      });
+    } else {
+      Promise.all([
+        addBattleRewards(selectedIds, avgEnemyLv),
+        advanceZoneStep(),
+      ]).then(([rewards, zoneResult]) => {
+        if (rewards) {
+          setBattleRewards({ ...rewards, zoneCleared: zoneResult?.zoneCleared ?? false });
+        }
+      });
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [winner]);
 
@@ -498,6 +554,7 @@ export default function Battle() {
   }, [log]);
 
   function resetToSelect() {
+    if (arenaMode) { navigate('/arena'); return; }
     setPhase('select');
     setSelectedIds([]);
     setCombatants([]);
@@ -505,6 +562,7 @@ export default function Battle() {
     setLog([]);
     setWinner(null);
     setBattleRewards(null);
+    setArenaScore(0);
   }
 
   // ── TEAM SELECT PHASE ──────────────────────────────────────────
@@ -512,46 +570,61 @@ export default function Battle() {
     const nextStepIsBoss = (save?.steps_taken ?? 0) === zone.steps - 1;
     return (
       <div className="screen fade-in">
-        <ScreenHeader title="⚔️ เลือกทีม" back="/home" />
+        <ScreenHeader title={arenaMode ? '🏆 Arena — เลือกทีม' : '⚔️ เลือกทีม'} back={arenaMode ? '/arena' : '/home'} />
         <div className="screen-content">
 
-          {/* Zone context */}
-          <div style={{
-            background: nextStepIsBoss
-              ? 'linear-gradient(135deg, rgba(255,71,87,0.12), rgba(255,71,87,0.04))'
-              : 'linear-gradient(135deg, rgba(38,222,129,0.08), var(--bg-card))',
-            border: `1.5px solid ${nextStepIsBoss ? 'rgba(255,71,87,0.4)' : 'rgba(38,222,129,0.25)'}`,
-            borderRadius: 'var(--r-lg)',
-            padding: '12px 14px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}>
-            <div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>
-                {nextStepIsBoss ? '👑 BOSS BATTLE' : `บทที่ ${zone.chapter} — ${zone.name}`}
-              </div>
-              <div style={{ fontWeight: 700, fontSize: 14 }}>
-                {nextStepIsBoss ? `⚠️ บอสประจำโซน — ${zone.name}` : zone.desc}
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>
-                ศัตรู: {(nextStepIsBoss ? zone.bossTypes : zone.enemies)
-                  .map(t => GHOST_REG[t]?.nameTh ?? t).join(', ')}
+          {/* Zone / Arena context */}
+          {arenaMode ? (
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(245,197,24,0.10), var(--bg-card))',
+              border: '1.5px solid rgba(245,197,24,0.35)',
+              borderRadius: 'var(--r-lg)', padding: '12px 14px',
+              display: 'flex', alignItems: 'center', gap: 12,
+            }}>
+              <div style={{ fontSize: 28 }}>🏆</div>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--gold)' }}>Arena VS AI</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                  ศัตรู AI สุ่มจาก ghost pool — ระดับใกล้เคียงทีมคุณ
+                </div>
               </div>
             </div>
-            <div>
-              <div style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'right', marginBottom: 4 }}>
-                {stepsDone}/{zone.steps} การต่อสู้
+          ) : (
+            <div style={{
+              background: nextStepIsBoss
+                ? 'linear-gradient(135deg, rgba(255,71,87,0.12), rgba(255,71,87,0.04))'
+                : 'linear-gradient(135deg, rgba(38,222,129,0.08), var(--bg-card))',
+              border: `1.5px solid ${nextStepIsBoss ? 'rgba(255,71,87,0.4)' : 'rgba(38,222,129,0.25)'}`,
+              borderRadius: 'var(--r-lg)',
+              padding: '12px 14px',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            }}>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>
+                  {nextStepIsBoss ? '👑 BOSS BATTLE' : `บทที่ ${zone.chapter} — ${zone.name}`}
+                </div>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>
+                  {nextStepIsBoss ? `⚠️ บอสประจำโซน — ${zone.name}` : zone.desc}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>
+                  ศัตรู: {(nextStepIsBoss ? zone.bossTypes : zone.enemies)
+                    .map(t => GHOST_REG[t]?.nameTh ?? t).join(', ')}
+                </div>
               </div>
-              <div style={{ width: 60, height: 6, background: 'rgba(255,255,255,0.1)', borderRadius: 3 }}>
-                <div style={{
-                  height: '100%', borderRadius: 3,
-                  width: `${(stepsDone / zone.steps) * 100}%`,
-                  background: nextStepIsBoss ? 'var(--red)' : 'var(--green)',
-                }} />
+              <div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'right', marginBottom: 4 }}>
+                  {stepsDone}/{zone.steps} การต่อสู้
+                </div>
+                <div style={{ width: 60, height: 6, background: 'rgba(255,255,255,0.1)', borderRadius: 3 }}>
+                  <div style={{
+                    height: '100%', borderRadius: 3,
+                    width: `${(stepsDone / zone.steps) * 100}%`,
+                    background: nextStepIsBoss ? 'var(--red)' : 'var(--green)',
+                  }} />
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>เลือกผีที่จะส่งสู้</span>
@@ -627,13 +700,15 @@ export default function Battle() {
           >
             {selectedIds.length < 1
               ? 'เลือกผีอย่างน้อย 1 ตัว'
-              : nextStepIsBoss
-                ? `👑 เข้าสู้บอส! (${selectedIds.length} ตัว)`
-                : `⚔️ เริ่มต่อสู้! (${selectedIds.length} ตัว)`}
+              : arenaMode
+                ? `🏆 ท้าชิง! (${selectedIds.length} ตัว)`
+                : nextStepIsBoss
+                  ? `👑 เข้าสู้บอส! (${selectedIds.length} ตัว)`
+                  : `⚔️ เริ่มต่อสู้! (${selectedIds.length} ตัว)`}
           </button>
 
-          {/* Zone progression overview */}
-          <div style={{ display: 'flex', gap: 4, justifyContent: 'center', marginTop: 4 }}>
+          {/* Zone progression overview (hidden in arena mode) */}
+          {!arenaMode && <div style={{ display: 'flex', gap: 4, justifyContent: 'center', marginTop: 4 }}>
             {Array.from({ length: zone.steps }).map((_, i) => (
               <div key={i} style={{
                 width: i < stepsDone ? 18 : 12,
@@ -647,7 +722,7 @@ export default function Battle() {
                 transition: 'all 0.2s',
               }} />
             ))}
-          </div>
+          </div>}
         </div>
       </div>
     );
@@ -656,7 +731,7 @@ export default function Battle() {
   // ── BATTLE / END PHASE ─────────────────────────────────────────
   return (
     <div className="screen fade-in" style={{ paddingBottom: 0 }}>
-      <ScreenHeader title={`⚔️ ${isBoss ? '👑 BOSS — ' : ''}${zone.name}`} back="/home" />
+      <ScreenHeader title={arenaMode ? '🏆 Arena Battle' : `⚔️ ${isBoss ? '👑 BOSS — ' : ''}${zone.name}`} back={arenaMode ? '/arena' : '/home'} />
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '10px 12px', gap: 8, minHeight: 0, position: 'relative' }}>
 
@@ -849,14 +924,19 @@ export default function Battle() {
               {/* Rewards box */}
               {winner === 'player' && battleRewards && (
                 <div style={{
-                  background: 'rgba(245,197,24,0.07)',
-                  border: '1px solid rgba(245,197,24,0.25)',
+                  background: arenaMode ? 'rgba(245,197,24,0.09)' : 'rgba(245,197,24,0.07)',
+                  border: `1px solid rgba(245,197,24,0.25)`,
                   borderRadius: 'var(--r-lg)', padding: '12px 14px',
                   display: 'flex', flexDirection: 'column', gap: 4,
                 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gold)', marginBottom: 2 }}>
-                    ✨ รางวัลการต่อสู้
+                    {arenaMode ? '🏆 Arena Rewards' : '✨ รางวัลการต่อสู้'}
                   </div>
+                  {arenaMode && (
+                    <div style={{ fontSize: 20, fontWeight: 700, fontFamily: 'JetBrains Mono, monospace', color: 'var(--gold)' }}>
+                      +{arenaScore.toLocaleString()} pts
+                    </div>
+                  )}
                   <div style={{ fontSize: 12, color: 'var(--text-light)', display: 'flex', gap: 16 }}>
                     <span>⚡ EXP +{battleRewards.expGained}</span>
                     <span>🌀 +{battleRewards.dustGained} ฝุ่น</span>
@@ -884,7 +964,7 @@ export default function Battle() {
               )}
 
               <button type="button" className="btn btn-gold btn-full" onClick={resetToSelect}>
-                🔄 สู้ต่อ
+                {arenaMode ? '🏆 กลับ Arena' : '🔄 สู้ต่อ'}
               </button>
             </div>
           )}

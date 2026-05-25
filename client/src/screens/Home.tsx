@@ -6,7 +6,7 @@ import Chibi from '../components/Chibi';
 import BottomNav from '../components/BottomNav';
 
 const MENU = [
-  { path: '/battle',    icon: '⚔️', label: 'ต่อสู้',    color: '#ff4757', desc: '3v3 ATB Battle' },
+  { path: '/arena',     icon: '🏆', label: 'สนามรบ',   color: '#ff4757', desc: 'Arena · ไต่อันดับ' },
   { path: '/roster',    icon: '👻', label: 'วิญญาณ',    color: '#4d9fff', desc: 'จัดการทีม' },
   { path: '/map',       icon: '🗺️', label: 'แผนที่',    color: '#26de81', desc: 'สำรวจดินแดน' },
   { path: '/upgrade',   icon: '🔧', label: 'อัปเกรด',   color: '#fd9644', desc: 'Forge · สกิล · ยันต์ · วิวัฒน์' },

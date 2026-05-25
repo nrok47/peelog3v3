@@ -9,6 +9,7 @@ import Roster           from './screens/Roster';
 import SpiritDetail     from './screens/SpiritDetail';
 import Map              from './screens/Map';
 import Upgrade          from './screens/Upgrade';
+import Arena            from './screens/Arena';
 import Adventure        from './screens/Adventure';
 import ElementCodex     from './screens/ElementCodex';
 import CorruptionEnding from './screens/CorruptionEnding';
@@ -44,6 +45,7 @@ export default function App() {
           <Route path="/spirit/:id" element={<ProtectedRoute><SpiritDetail /></ProtectedRoute>} />
           <Route path="/map"        element={<ProtectedRoute><Map /></ProtectedRoute>} />
           <Route path="/upgrade"    element={<ProtectedRoute><Upgrade /></ProtectedRoute>} />
+          <Route path="/arena"      element={<ProtectedRoute><Arena /></ProtectedRoute>} />
           <Route path="/adventure"  element={<ProtectedRoute><Adventure /></ProtectedRoute>} />
           <Route path="/codex"      element={<ProtectedRoute><ElementCodex /></ProtectedRoute>} />
           <Route path="/ending"     element={<ProtectedRoute><CorruptionEnding /></ProtectedRoute>} />
