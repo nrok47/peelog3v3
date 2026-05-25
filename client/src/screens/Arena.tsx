@@ -21,8 +21,9 @@ export default function Arena() {
   const navigate = useNavigate();
   const { ghosts, team, player } = useGameStore();
 
-  const [board, setBoard]             = useState<{ username: string; score: number; ending: string }[]>([]);
-  const [myBestScore, setMyBestScore] = useState<number | null>(null);
+  const [board, setBoard]               = useState<{ username: string; score: number; ending: string }[]>([]);
+  const [myBestScore, setMyBestScore]   = useState<number | null>(null);
+  const [myHasDefenseTeam, setMyHasDefenseTeam] = useState(false);
   const [boardLoading, setBoardLoading] = useState(true);
 
   useEffect(() => {
@@ -31,11 +32,12 @@ export default function Arena() {
       data.map(r => ({ username: r.username as string, score: r.score as number, ending: (r.ending ?? 'neutral') as string }))
     );
     const fetchMine = player
-      ? LeaderboardService.getPlayerBestScore(player.id)
-      : Promise.resolve(null);
-    Promise.all([fetchBoard, fetchMine]).then(([topData, myScore]) => {
+      ? LeaderboardService.getPlayerEntry(player.id)
+      : Promise.resolve({ score: null, hasDefenseTeam: false });
+    Promise.all([fetchBoard, fetchMine]).then(([topData, myEntry]) => {
       setBoard(topData);
-      setMyBestScore(myScore);
+      setMyBestScore(myEntry.score);
+      setMyHasDefenseTeam(myEntry.hasDefenseTeam);
       setBoardLoading(false);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -73,6 +75,12 @@ export default function Arena() {
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
             {myBestScore !== null ? 'คะแนนสูงสุดของคุณ' : 'คะแนนประเมิน (ยังไม่เคยลงสนาม)'}
+          </div>
+          <div style={{ marginTop: 10, fontSize: 11 }}>
+            {myHasDefenseTeam
+              ? <span style={{ color: '#4ade80', fontWeight: 700 }}>🛡️ ทีมตั้งรับ: บันทึกแล้ว — ผู้เล่นอื่นสามารถท้าชิงได้</span>
+              : <span style={{ color: 'var(--text-muted)' }}>🛡️ ยังไม่มีทีมตั้งรับ — ไปบันทึกที่คลังผีก่อน</span>
+            }
           </div>
         </div>
 

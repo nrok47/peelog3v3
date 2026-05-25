@@ -145,15 +145,46 @@ export const LeaderboardService = {
     return data ?? [];
   },
 
-  async getPlayerBestScore(playerId: string): Promise<number | null> {
+  async getPlayerEntry(playerId: string): Promise<{ score: number | null; hasDefenseTeam: boolean }> {
     const { data } = await db.from('leaderboard')
-      .select('score')
+      .select('score, defense_team')
       .eq('player_id', playerId)
       .eq('season', '2026-S1')
       .order('score', { ascending: false })
       .limit(1)
       .maybeSingle();
-    return data?.score ?? null;
+    return { score: data?.score ?? null, hasDefenseTeam: !!data?.defense_team };
+  },
+
+  async saveDefenseTeam(playerId: string, username: string, team: Ghost[]): Promise<void> {
+    const { data: existing } = await db.from('leaderboard')
+      .select('id')
+      .eq('player_id', playerId)
+      .eq('season', '2026-S1')
+      .order('score', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (existing) {
+      await db.from('leaderboard').update({ defense_team: team }).eq('id', existing.id);
+    } else {
+      await db.from('leaderboard').insert({
+        player_id: playerId, username, score: 0, ending: 'neutral', season: '2026-S1', defense_team: team,
+      });
+    }
+  },
+
+  async findOpponent(myPlayerId: string, myScore: number): Promise<{ username: string; team: Ghost[] } | null> {
+    const { data } = await db.from('leaderboard')
+      .select('username, defense_team, player_id')
+      .not('defense_team', 'is', null)
+      .neq('player_id', myPlayerId)
+      .gte('score', myScore - 300)
+      .lte('score', myScore + 300)
+      .eq('season', '2026-S1')
+      .limit(10);
+    if (!data || data.length === 0) return null;
+    const opp = data[Math.floor(Math.random() * data.length)];
+    return { username: opp.username as string, team: opp.defense_team as Ghost[] };
   },
 
   async submit(playerId: string, username: string, score: number, ending: string) {

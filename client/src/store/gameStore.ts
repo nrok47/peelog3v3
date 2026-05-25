@@ -20,6 +20,7 @@ interface GameStore extends GameState {
   advanceZoneStep: () => Promise<{ zoneCleared: boolean; newZoneId: string | null }>;
   setFieldAmulet: (pos: number, amuletId: string | null) => Promise<void>;
   submitArenaScore: (score: number) => Promise<void>;
+  saveDefenseTeam: () => Promise<void>;
   passiveDustEarned: number;
   passiveRate: number;        // dust/hour current rate (bond-based)
 }
@@ -290,6 +291,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
     await LeaderboardService.submit(
       player.id, player.username, score, save?.current_ending ?? 'neutral'
     );
+  },
+
+  async saveDefenseTeam() {
+    const { player, team } = get();
+    if (!player || team.length === 0) return;
+    await LeaderboardService.saveDefenseTeam(player.id, player.username, team);
   },
 
   async summonGhost(ghostType, cost) {

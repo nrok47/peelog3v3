@@ -16,7 +16,10 @@ type PoolKey = keyof typeof SUMMON_POOLS;
 
 export default function Roster() {
   const navigate = useNavigate();
-  const { ghosts, team, player, summonGhost } = useGameStore();
+  const { ghosts, team, player, summonGhost, saveDefenseTeam } = useGameStore();
+
+  const [savingDefense, setSavingDefense] = useState(false);
+  const [defenseSaved, setDefenseSaved] = useState(false);
 
   const [elFilter, setElFilter] = useState('ทั้งหมด');
   const [sort, setSort] = useState<'level' | 'bond' | 'element'>('level');
@@ -239,6 +242,46 @@ export default function Roster() {
       )}
 
       <div className="screen-content">
+        {/* Defense Team Card */}
+        {team.length > 0 && (
+          <div className="card" style={{ padding: '12px 14px', marginBottom: 4 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 4 }}>🛡️ ทีมตั้งรับ (Arena)</div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {team.map(g => {
+                    const def = GHOST_REG[g.ghost_type];
+                    return (
+                      <span key={g.id} title={g.nickname || def?.nameTh} style={{ fontSize: 22 }}>
+                        {def?.emoji ?? '👻'}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+              <button
+                type="button"
+                className="btn btn-primary"
+                style={{ fontSize: 12, padding: '6px 12px', whiteSpace: 'nowrap' }}
+                disabled={savingDefense}
+                onClick={async () => {
+                  setSavingDefense(true);
+                  setDefenseSaved(false);
+                  try {
+                    await saveDefenseTeam();
+                    setDefenseSaved(true);
+                    setTimeout(() => setDefenseSaved(false), 3000);
+                  } finally {
+                    setSavingDefense(false);
+                  }
+                }}
+              >
+                {savingDefense ? '⏳...' : defenseSaved ? '✅ บันทึกแล้ว' : '🔒 บันทึกทีมตั้งรับ'}
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Filter chips */}
         <div className="chip-row">
           {EL_FILTERS.map(f => (

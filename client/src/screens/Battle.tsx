@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
+import { LeaderboardService } from '../db/supabase';
 import { GHOST_REG, ELEMENT_CHART } from '../data/ghosts';
 import { ZONE_DEFS, getZoneDef, getZoneIndex, buildZoneEnemies } from '../data/zones';
 import Chibi from '../components/Chibi';
@@ -236,6 +237,7 @@ export default function Battle() {
   const [enemyGhosts, setEnemyGhosts] = useState<Ghost[]>([]);
   const [battleRewards, setBattleRewards] = useState<{ expGained: number; levelUps: string[]; dustGained: number; zoneCleared: boolean } | null>(null);
   const [arenaScore, setArenaScore]         = useState(0);
+  const [opponent, setOpponent]             = useState<{ username: string; team: Ghost[] } | null>(null);
   const [exorcistGauge, setExorcistGauge]   = useState(0);
   const [attackAnim, setAttackAnim]         = useState<AttackAnim | null>(null);
   const tickRef       = useRef<number | null>(null);
@@ -248,6 +250,17 @@ export default function Battle() {
     if (arenaMode && team.length > 0 && selectedIds.length === 0) {
       setSelectedIds(team.slice(0, 3).map(g => g.id));
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [arenaMode]);
+
+  // Arena mode: fetch a real opponent from leaderboard
+  useEffect(() => {
+    if (!arenaMode || !player) return;
+    const avgLv = team.length > 0 ? Math.round(team.reduce((s, g) => s + g.level, 0) / team.length) : 1;
+    const estimatedScore = Math.min(9999, ghosts.length * 30 + avgLv * 50);
+    LeaderboardService.findOpponent(player.id, estimatedScore).then(opp => {
+      if (opp) setOpponent(opp);
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [arenaMode]);
 
@@ -280,13 +293,19 @@ export default function Battle() {
     gaugeRef.current = 0;
     setExorcistGauge(0);
 
-    // Generate enemies (arena = random AI, story = zone-based)
+    // Generate enemies (arena = real opponent or AI fallback, story = zone-based)
     const avgTeamLv = playerTeam.length > 0
       ? Math.round(playerTeam.reduce((s, g) => s + g.level, 0) / playerTeam.length)
       : 1;
-    const enemies = arenaMode
-      ? buildArenaEnemies(avgTeamLv, playerTeam.length)
-      : buildZoneEnemies(zone, stepsDone, playerTeam.length);
+    let enemies: Ghost[];
+    if (arenaMode) {
+      const validOpponentTeam = (opponent?.team ?? []).filter(g => GHOST_REG[g.ghost_type]);
+      enemies = validOpponentTeam.length > 0
+        ? validOpponentTeam.slice(0, playerTeam.length).map((g, i) => ({ ...g, id: `arena_pvp_${i}`, player_id: 'pvp' }))
+        : buildArenaEnemies(avgTeamLv, playerTeam.length);
+    } else {
+      enemies = buildZoneEnemies(zone, stepsDone, playerTeam.length);
+    }
     setEnemyGhosts(enemies);
 
     const fieldAmulets = player?.inventory?.field_amulets ?? [null, null, null];
@@ -296,7 +315,7 @@ export default function Battle() {
     ];
     setCombatants(initial);
     setLog([{ text: arenaMode
-      ? `🏆 Arena Battle เริ่ม! ทีม AI กำลังมา...`
+      ? `🏆 Arena Battle เริ่ม! VS ${opponent ? opponent.username : 'AI'}...`
       : `⚔️ ${isBoss ? '👑 BOSS FIGHT! ' : ''}การต่อสู้เริ่มต้น — ${zone.name} (${stepsDone + 1}/${zone.steps})`,
       type: 'info' }]);
     setPhase('battle');
@@ -626,11 +645,15 @@ export default function Battle() {
               borderRadius: 'var(--r-lg)', padding: '12px 14px',
               display: 'flex', alignItems: 'center', gap: 12,
             }}>
-              <div style={{ fontSize: 28 }}>🏆</div>
+              <div style={{ fontSize: 28 }}>{opponent ? '⚔️' : '🏆'}</div>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--gold)' }}>Arena VS AI</div>
+                <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--gold)' }}>
+                  {opponent ? `VS ${opponent.username}` : 'Arena VS AI'}
+                </div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                  ศัตรู AI สุ่มจาก ghost pool — ระดับใกล้เคียงทีมคุณ
+                  {opponent
+                    ? `ทีมตั้งรับของ ${opponent.username} — ผี ${opponent.team.length} ตัว`
+                    : 'ศัตรู AI สุ่มจาก ghost pool — ระดับใกล้เคียงทีมคุณ'}
                 </div>
               </div>
             </div>
@@ -776,7 +799,12 @@ export default function Battle() {
   // ── BATTLE / END PHASE ─────────────────────────────────────────
   return (
     <div className="screen fade-in" style={{ paddingBottom: 0 }}>
-      <ScreenHeader title={arenaMode ? '🏆 Arena Battle' : `⚔️ ${isBoss ? '👑 BOSS — ' : ''}${zone.name}`} back={arenaMode ? '/arena' : '/home'} />
+      <ScreenHeader
+        title={arenaMode
+          ? `🏆 ${opponent ? `VS ${opponent.username}` : 'Arena Battle'}`
+          : `⚔️ ${isBoss ? '👑 BOSS — ' : ''}${zone.name}`}
+        back={arenaMode ? '/arena' : '/home'}
+      />
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '10px 12px', gap: 8, minHeight: 0, position: 'relative' }}>
 
