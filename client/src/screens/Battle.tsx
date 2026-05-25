@@ -434,9 +434,10 @@ export default function Battle() {
           const elem     = (ELEMENT_CHART as Record<string, Record<string, number>>)[actorEl]?.[targetEl] ?? 1.0;
           const rawAtk   = (useStr ? act.boostedStats.str : act.boostedStats.mag) * (1 - act.statusEffects.atkDebuffPct);
           const rawDef   = (useStr ? t.boostedStats.def   : t.boostedStats.spr)   * (1 - t.statusEffects.defDebuffPct);
-          const raw      = Math.max(1, rawAtk * (pwr / 100) * elem - rawDef * 0.3 + Math.random() * 15);
+          const raw      = Math.max(1, rawAtk * (pwr / 100) * elem - rawDef * 0.15 + Math.random() * 15);
+          const floor    = Math.ceil(t.maxHp * 0.05);
           const isCrit   = Math.random() < act.critRate;
-          return { dmg: Math.floor(Math.max(1, raw * (isCrit ? 1.8 : 1) * (1 - t.statusEffects.shieldPct))), isCrit };
+          return { dmg: Math.floor(Math.max(floor, raw * (isCrit ? 1.8 : 1) * (1 - t.statusEffects.shieldPct))), isCrit };
         }
 
         // ── Accumulators ──────────────────────────────────────────
@@ -501,7 +502,7 @@ export default function Battle() {
               animTgt = lowest;
             }
           } else {
-            const healAmt = Math.floor(actor.boostedStats.mag * (skill.power / 100));
+            const healAmt = Math.floor(actor.boostedStats.mag * (skill.power / 180));
             for (const a of [...aliveAllies, actor]) hpDelta[a.ghost.id] = healAmt;
             logQ.push({ text: `${SKILL_FLAVOR['kmt_heal']} ฮีล +${healAmt} ทุกคน`, type: 'heal' });
             if (aliveAllies.length > 0) animTgt = aliveAllies[0];
@@ -523,7 +524,7 @@ export default function Battle() {
             for (const t of aliveEnemies) statChgs[t.ghost.id] = { defDebuffPct: 0.25 };
             logQ.push({ text: SKILL_FLAVOR['krasue_curse'], type: 'skill' });
           } else if (skill.id === 'tani_sleep') {
-            for (const t of aliveEnemies) statChgs[t.ghost.id] = { stunTurns: 2 };
+            for (const t of aliveEnemies) statChgs[t.ghost.id] = { stunTurns: 1 };
             logQ.push({ text: SKILL_FLAVOR['tani_sleep'], type: 'skill' });
           } else if (skill.id === 'kala_hex') {
             for (const t of aliveEnemies) { statChgs[t.ghost.id] = { atkDebuffPct: 0.25 }; gutsSet[t.ghost.id] = 0; }
