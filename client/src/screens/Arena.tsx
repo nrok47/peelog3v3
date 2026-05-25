@@ -5,6 +5,7 @@ import { LeaderboardService } from '../db/supabase';
 import { GHOST_REG } from '../data/ghosts';
 import Chibi from '../components/Chibi';
 import ScreenHeader from '../components/ScreenHeader';
+import BottomNav from '../components/BottomNav';
 
 const ENDING_LABEL: Record<string, string> = {
   good: '🌟', neutral: '⚖️', bad: '💀', true: '🔮',
@@ -52,7 +53,7 @@ export default function Arena() {
 
   return (
     <div className="screen fade-in">
-      <ScreenHeader title="🏆 สนามรบ" back />
+      <ScreenHeader title="🏆 สนามรบ" back="/home" />
 
       <div className="screen-content">
 
@@ -115,6 +116,7 @@ export default function Arena() {
 
         {/* Challenge button */}
         <button
+          type="button"
           className="btn btn-gold btn-full"
           disabled={team.length === 0}
           onClick={() => navigate('/battle', { state: { arenaMode: true } })}
@@ -183,6 +185,8 @@ export default function Arena() {
         </div>
 
       </div>
+
+      <BottomNav />
     </div>
   );
 }
