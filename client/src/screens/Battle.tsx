@@ -235,11 +235,13 @@ export default function Battle() {
   const [combatants, setCombatants]   = useState<Combatant[]>([]);
   const [enemyGhosts, setEnemyGhosts] = useState<Ghost[]>([]);
   const [battleRewards, setBattleRewards] = useState<{ expGained: number; levelUps: string[]; dustGained: number; zoneCleared: boolean } | null>(null);
-  const [arenaScore, setArenaScore] = useState(0);
-  const [attackAnim, setAttackAnim] = useState<AttackAnim | null>(null);
+  const [arenaScore, setArenaScore]         = useState(0);
+  const [exorcistGauge, setExorcistGauge]   = useState(0);
+  const [attackAnim, setAttackAnim]         = useState<AttackAnim | null>(null);
   const tickRef       = useRef<number | null>(null);
   const logRef        = useRef<HTMLDivElement>(null);
   const rewardDoneRef = useRef(false);
+  const gaugeRef      = useRef(0);
 
   // Arena mode: auto-select current team
   useEffect(() => {
@@ -275,6 +277,8 @@ export default function Battle() {
     if (playerTeam.length < 1) return;
     rewardDoneRef.current = false;
     setBattleRewards(null);
+    gaugeRef.current = 0;
+    setExorcistGauge(0);
 
     // Generate enemies (arena = random AI, story = zone-based)
     const avgTeamLv = playerTeam.length > 0
@@ -511,6 +515,12 @@ export default function Battle() {
         });
         for (const entry of logQ) setLog(l => [...l.slice(-30), entry]);
 
+        // ── Exorcist gauge (player actions only) ─────────────────
+        if (actor.isPlayer) {
+          gaugeRef.current = Math.min(100, gaugeRef.current + (useSpecial ? 20 : 8));
+          setExorcistGauge(gaugeRef.current);
+        }
+
         // ── Apply changes ────────────────────────────────────────
         const result = ticked.map(c => {
           if (!c.alive) return c;
@@ -554,6 +564,38 @@ export default function Battle() {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
   }, [log]);
 
+  function exorcistCommand(cmd: 'rush' | 'heal' | 'boost') {
+    gaugeRef.current = 0;
+    setExorcistGauge(0);
+    setCombatants(prev => {
+      const alive = (p: boolean) => prev.filter(c => c.isPlayer === p && c.alive);
+      if (cmd === 'rush') {
+        const target = alive(false).sort((a, b) => a.currentHp - b.currentHp)[0];
+        if (!target) return prev;
+        const dmg = Math.floor(target.maxHp * 0.25);
+        const newHp = Math.max(0, target.currentHp - dmg);
+        const n = GHOST_REG[target.ghost.ghost_type]?.nameTh ?? '';
+        setLog(l => [...l.slice(-30), { text: `🗣️ รุม! ${n} รับ -${dmg} (25% HP)!`, type: 'info' }]);
+        return prev.map(c => c.ghost.id === target.ghost.id ? { ...c, currentHp: newHp, alive: newHp > 0 } : c);
+      }
+      if (cmd === 'heal') {
+        setLog(l => [...l.slice(-30), { text: `💊 ฮึดสู้! ฮีลทีม +18% HP!`, type: 'heal' }]);
+        return prev.map(c =>
+          c.isPlayer && c.alive
+            ? { ...c, currentHp: Math.min(c.maxHp, c.currentHp + Math.floor(c.maxHp * 0.18)) }
+            : c
+        );
+      }
+      if (cmd === 'boost') {
+        setLog(l => [...l.slice(-30), { text: `⚡ ฟ้าฟาด! ATB ทีม +30!`, type: 'info' }]);
+        return prev.map(c =>
+          c.isPlayer && c.alive ? { ...c, atb: Math.min(100, c.atb + 30) } : c
+        );
+      }
+      return prev;
+    });
+  }
+
   function resetToSelect() {
     if (arenaMode) { navigate('/arena'); return; }
     setPhase('select');
@@ -564,6 +606,8 @@ export default function Battle() {
     setWinner(null);
     setBattleRewards(null);
     setArenaScore(0);
+    gaugeRef.current = 0;
+    setExorcistGauge(0);
   }
 
   // ── TEAM SELECT PHASE ──────────────────────────────────────────
@@ -879,11 +923,59 @@ export default function Battle() {
         {/* Action / end */}
         <div style={{ paddingBottom: 12 }}>
           {phase === 'battle' && (
-            <div style={{
-              textAlign: 'center', color: 'var(--text-muted)', fontSize: 13,
-              padding: '12px', background: 'var(--bg-card)', borderRadius: 'var(--r-lg)',
-            }}>
-              <span className="pulse">⏳ กำลังต่อสู้ (Auto ATB)...</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {/* Exorcist gauge */}
+              <div style={{
+                background: 'var(--bg-card)', borderRadius: 'var(--r-lg)',
+                border: `1px solid rgba(168,85,247,${exorcistGauge >= 100 ? '0.6' : '0.2'})`,
+                padding: '8px 12px',
+                transition: 'border-color 0.2s',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5, fontSize: 11 }}>
+                  <span style={{ color: 'var(--text-muted)' }}>🔮 พลังจิตจอมขมัง</span>
+                  <span style={{ color: exorcistGauge >= 100 ? '#c084fc' : 'var(--text-muted)', fontWeight: 700 }}>
+                    {exorcistGauge}/100{exorcistGauge >= 100 ? ' ✦ พร้อม!' : ''}
+                  </span>
+                </div>
+                <div className="bar-track thin">
+                  <div style={{
+                    height: '100%', borderRadius: 3,
+                    width: `${exorcistGauge}%`,
+                    background: exorcistGauge >= 100
+                      ? 'linear-gradient(90deg, #7c3aed, #a855f7)'
+                      : 'rgba(168,85,247,0.45)',
+                    transition: 'width 0.15s',
+                    boxShadow: exorcistGauge >= 100 ? '0 0 8px rgba(168,85,247,0.5)' : 'none',
+                  }} />
+                </div>
+                {exorcistGauge >= 100 && (
+                  <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                    {([
+                      { cmd: 'rush',  label: '🗣️ รุม!',    clr: '#ff6b81', bg: 'rgba(255,71,87,0.2)',    bd: 'rgba(255,71,87,0.5)'  },
+                      { cmd: 'heal',  label: '💊 ฮึดสู้!', clr: 'var(--green)', bg: 'rgba(38,222,129,0.2)', bd: 'rgba(38,222,129,0.5)' },
+                      { cmd: 'boost', label: '⚡ ฟ้าฟาด!', clr: 'var(--gold)', bg: 'rgba(245,197,24,0.2)', bd: 'rgba(245,197,24,0.5)' },
+                    ] as const).map(({ cmd, label, clr, bg, bd }) => (
+                      <button
+                        key={cmd}
+                        type="button"
+                        onClick={() => exorcistCommand(cmd)}
+                        style={{
+                          flex: 1, padding: '7px 0', fontSize: 11, fontWeight: 700,
+                          background: bg, border: `1px solid ${bd}`,
+                          borderRadius: 6, color: clr, cursor: 'pointer', fontFamily: 'inherit',
+                          animation: 'popIn 0.3s ease-out',
+                        }}
+                      >{label}</button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div style={{
+                textAlign: 'center', color: 'var(--text-muted)', fontSize: 13,
+                padding: '10px', background: 'var(--bg-card)', borderRadius: 'var(--r-lg)',
+              }}>
+                <span className="pulse">⏳ กำลังต่อสู้ (Auto ATB)...</span>
+              </div>
             </div>
           )}
 

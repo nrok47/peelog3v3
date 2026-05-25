@@ -28,6 +28,10 @@ const DUST_PER_HOUR = 30;
 const MAX_OFFLINE_HOURS = 8;
 const SYNC_KEY = 'spirit_master_dust_sync';
 
+const INNATE_MINOR  = ['+5% ATK', '+5% MAG', '+5% DEF', '+5% SPR', '+5 SPD', '+150 HP', '+10% GUTS'];
+const INNATE_MEDIUM = ['+10% ATK', '+10% MAG', '+10% DEF', '+10% SPR', '+8 SPD', '+250 HP', '+20% GUTS'];
+const rndPick = <T,>(arr: T[]) => arr[Math.floor(Math.random() * arr.length)];
+
 export const useGameStore = create<GameStore>((set, get) => ({
   player:    null,
   ghosts:    [],
@@ -301,6 +305,19 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (dustErr) throw dustErr;
 
     const newGhost = await GhostService.add(player.id, ghostType);
+
+    // Innate affix based on rarity (string format for Battle.tsx parser)
+    const ghostDef  = GHOST_LIST.find(g => g.id === ghostType);
+    const rarity    = ghostDef?.rarity ?? 'common';
+    let innateAffix: string | null = null;
+    if      (rarity === 'legendary')              innateAffix = rndPick(INNATE_MEDIUM);
+    else if (rarity === 'rare')                    innateAffix = rndPick(INNATE_MINOR);
+    else if (rarity === 'uncommon' && Math.random() < 0.2) innateAffix = rndPick(INNATE_MINOR);
+    if (innateAffix) {
+      const spirit_mass = { affixes: [innateAffix], tier_history: [] };
+      await GhostService.update(newGhost.id, { spirit_mass });
+      newGhost.spirit_mass = spirit_mass as Ghost['spirit_mass'];
+    }
 
     set(state => ({
       player: state.player ? { ...state.player, spirit_dust: state.player.spirit_dust - cost } : null,

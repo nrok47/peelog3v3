@@ -23,7 +23,7 @@ export default function Roster() {
   const [showSummon, setShowSummon] = useState(false);
   const [selectedPool, setSelectedPool] = useState<PoolKey>('basic');
   const [summonPhase, setSummonPhase] = useState<'select' | 'spinning' | 'reveal'>('select');
-  const [summonResult, setSummonResult] = useState<{ ghostType: string; rarity: string } | null>(null);
+  const [summonResult, setSummonResult] = useState<{ ghostType: string; rarity: string; innateAffix?: string | null } | null>(null);
   const [summonErr, setSummonErr] = useState('');
   const summonTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -44,8 +44,10 @@ export default function Roster() {
       try {
         const rarity = rollRarity(selectedPool);
         const ghostType = pickGhostByRarity(rarity);
-        await summonGhost(ghostType, cost);
-        setSummonResult({ ghostType, rarity });
+        const newGhost = await summonGhost(ghostType, cost);
+        const innateAffix = (newGhost.spirit_mass?.affixes as string[] ?? [])
+          .find(a => typeof a === 'string') ?? null;
+        setSummonResult({ ghostType, rarity, innateAffix });
         setSummonPhase('reveal');
       } catch (e: unknown) {
         setSummonErr(e instanceof Error ? e.message : 'เกิดข้อผิดพลาด');
@@ -140,6 +142,18 @@ export default function Roster() {
                     {isLeg && (
                       <div style={{ marginTop: 10, fontSize: 12, color: '#ff8800', fontWeight: 700 }}>
                         🎉 ยินดีด้วย! ได้ผีระดับตำนาน!
+                      </div>
+                    )}
+                    {summonResult.innateAffix && (
+                      <div style={{
+                        marginTop: 10, fontSize: 12, fontWeight: 700,
+                        background: 'rgba(168,85,247,0.2)',
+                        border: '1px solid rgba(168,85,247,0.5)',
+                        borderRadius: 8, padding: '5px 12px',
+                        color: '#c084fc',
+                        animation: 'popIn 0.5s ease-out 0.2s both',
+                      }}>
+                        ✨ Innate: {summonResult.innateAffix}
                       </div>
                     )}
                   </div>
