@@ -1,270 +1,678 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useGameStore } from '../store/gameStore';
+import { GHOST_REG } from '../data/ghosts';
+import { getZoneDef } from '../data/zones';
+import Chibi from '../components/Chibi';
 import ScreenHeader from '../components/ScreenHeader';
 import BottomNav from '../components/BottomNav';
 
-interface EventChoice {
-  id: string;
-  text: string;
-  outcome: string;
-  corruptionDelta: number;
-  dustReward?: number;
-  bondGain?: number;
+// ─── Types ────────────────────────────────────────────────────────────────────
+type AdvPhase = 'idle' | 'walking' | 'boon' | 'boss' | 'clear' | 'defeat';
+
+interface LogLine { text: string; color: string }
+
+interface Session {
+  phase:           AdvPhase;
+  step:            number;
+  maxSteps:        number;
+  hpPct:           number;
+  dustEarned:      number;
+  expEarned:       number;
+  bondEarned:      number;
+  corruptionGain:  number;
+  activeBoons:     string[];
+  log:             LogLine[];
 }
 
-interface EventNode {
-  id: string;
-  title: string;
-  text: string;
-  icon: string;
-  choices: EventChoice[];
-}
+interface BoonDef { id: string; name: string; icon: string; desc: string }
 
-const EVENTS: EventNode[] = [
-  {
-    id: 'ev01',
-    icon: '⛩️',
-    title: 'ศาลเจ้าลึกลับ',
-    text: 'คุณพบศาลเจ้าเก่าแก่กลางป่า ข้างในมีเทียนจุดอยู่ แต่ไม่มีใครอยู่ เสียงพระธรรมดังแว่วมาจากข้างใน...',
-    choices: [
-      { id: 'pray',  text: '🙏 ไหว้บูชา',       outcome: 'พลังศักดิ์สิทธิ์ปกป้องคณะ วิญญาณทุกตัวรู้สึกสงบ',   corruptionDelta: -5, bondGain: 5 },
-      { id: 'take',  text: '💎 เอาของในศาล',     outcome: 'ได้ฝุ่นวิญญาณ แต่ถูกสาปทำให้มืดลง',                corruptionDelta: 10, dustReward: 50 },
-      { id: 'leave', text: '🚶 เดินต่อไป',        outcome: 'เดินผ่านมาโดยไม่มีอะไรเกิดขึ้น',                    corruptionDelta: 0 },
-    ],
-  },
-  {
-    id: 'ev02',
-    icon: '👧',
-    title: 'เด็กหญิงหลงทาง',
-    text: 'คุณเจอเด็กหญิงนั่งร้องไห้กลางทาง เธอบอกว่าหลงมาจากหมู่บ้าน แต่ดวงตาของเธอดูแปลกพิกล สีดำสนิทโดยไม่มีขาว...',
-    choices: [
-      { id: 'help',  text: '🤝 ช่วยพาส่ง',         outcome: 'เด็กหายตัวพร้อมรอยยิ้ม ทิ้งฝุ่นวิญญาณไว้ให้',      corruptionDelta: -10, dustReward: 30 },
-      { id: 'run',   text: '🏃 วิ่งหนี',             outcome: 'รอดปลอดภัย แต่เสียงหัวเราะดังตามหลัง',              corruptionDelta: 0 },
-      { id: 'bind',  text: '⛓️ จับกักขังไว้ศึกษา', outcome: 'ได้ข้อมูลลึกลับและฝุ่นวิญญาณ แต่ความมืดซึมเข้ามา', corruptionDelta: 15, dustReward: 80 },
-    ],
-  },
-  {
-    id: 'ev03',
-    icon: '🌳',
-    title: 'ต้นไม้โบราณ',
-    text: 'ต้นไม้ขนาดมหึมาที่มีอายุนับร้อยปี บนกิ่งมีผ้าสีแดงผูกอยู่เต็มไปหมด เสียงกระซิบดังมาจากเปลือกไม้...',
-    choices: [
-      { id: 'listen',  text: '👂 ฟังเสียงกระซิบ', outcome: 'เรียนรู้ความลับเก่าแก่ ได้ฝุ่นวิญญาณและ corruption เล็กน้อย', corruptionDelta: 5,  dustReward: 40 },
-      { id: 'cut',     text: '🪓 ตัดกิ่ง',         outcome: 'ได้ฝุ่นหายาก แต่ถูกสาปหนัก',                               corruptionDelta: 20, dustReward: 100 },
-      { id: 'respect', text: '💐 วางดอกไม้บูชา',   outcome: 'ต้นไม้ให้พรแก่วิญญาณ Bond ทุกตัวเพิ่มขึ้น',               corruptionDelta: -5, bondGain: 3 },
-    ],
-  },
-  {
-    id: 'ev04',
-    icon: '🕯️',
-    title: 'ห้องเรียนร้าง',
-    text: 'โรงเรียนเก่าที่ถูกทิ้งร้าง บนกระดานดำมีตัวเลขเขียนอยู่ — 13, 6, 9... และภาพวาดเด็กที่ดูเหมือนจะเคลื่อนไหวได้...',
-    choices: [
-      { id: 'copy',  text: '📝 คัดลอกสูตร',       outcome: 'ได้รับความรู้ลึกลับพร้อมฝุ่นวิญญาณ',          corruptionDelta: 5,   dustReward: 35 },
-      { id: 'erase', text: '🧹 ลบกระดาน',          outcome: 'วิญญาณที่ผูกพันถูกปลดปล่อย Bond ทุกตัวเพิ่ม', corruptionDelta: -8,  bondGain: 4 },
-      { id: 'burn',  text: '🔥 เผาโรงเรียน',       outcome: 'ไฟดับวิญญาณชั่วคราว ได้ฝุ่นมาก แต่มืดหนัก',   corruptionDelta: 25,  dustReward: 120 },
-    ],
-  },
-  {
-    id: 'ev05',
-    icon: '🌊',
-    title: 'บึงน้ำดำ',
-    text: 'บึงน้ำสีดำสนิท ไม่มีคลื่น ไม่มีเสียง แต่เงาของคุณในน้ำดูเหมือนจะขยับต่างจากตัวจริง...',
-    choices: [
-      { id: 'drink',  text: '💧 ดื่มน้ำ',          outcome: 'น้ำเย็นชืดชวนให้ลืมความกลัว แต่มืดซึมเข้าสู่ใจ', corruptionDelta: 12, dustReward: 20 },
-      { id: 'pray2',  text: '🙏 สวดมนต์ก่อนข้าม', outcome: 'ข้ามได้อย่างปลอดภัย วิญญาณในทีมรู้สึกสงบ',        corruptionDelta: -8, bondGain: 6 },
-      { id: 'bypass', text: '🏃 อ้อมไป',           outcome: 'เสียเวลาแต่ปลอดภัย ได้ฝุ่นเล็กน้อยระหว่างทาง',   corruptionDelta: 0,  dustReward: 15 },
-    ],
-  },
+// ─── Data ─────────────────────────────────────────────────────────────────────
+const TICK_MS   = 1700;
+const MAX_STEPS = 15;
+
+const ALL_BOONS: BoonDef[] = [
+  { id: 'fire_power',    name: 'ไฟแห่งปอบ',      icon: '🔥', desc: 'ดาเมจธาตุไฟ +20% ในด่านนี้' },
+  { id: 'earth_shield',  name: 'โล่ผีดิบ',        icon: '🪨', desc: 'ลดดาเมจที่รับ 15%' },
+  { id: 'ghost_speed',   name: 'เงาแห่งกระสือ',   icon: '💨', desc: 'ลด HP ที่สูญเสียจาก Combat ลง 50%' },
+  { id: 'blood_regen',   name: 'น้ำตาแม่นาค',     icon: '💧', desc: 'ฟื้น HP +8% ทุก 3 ก้าว' },
+  { id: 'crit_yant',     name: 'ยันต์ตาทิพย์',    icon: '✨', desc: 'Combat ชนะ: ได้ฝุ่น 2 เท่า' },
+  { id: 'dust_bonus',    name: 'รอยยิ้มกุมาร',    icon: '😊', desc: 'ฝุ่นจาก Loot +60%' },
+  { id: 'poison_debuff', name: 'พิษกาลกิณี',      icon: '🌑', desc: 'ชนะ Combat ทุกครั้ง + Corruption ลด 2' },
+  { id: 'exp_boost',     name: 'บทเรียนสนาม',      icon: '📚', desc: 'EXP ที่ได้รับ +40%' },
+  { id: 'dodge_hazard',  name: 'ตราคุ้มครอง',      icon: '📜', desc: 'หลีกเลี่ยง Hazard ถัดไป 1 ครั้ง' },
+  { id: 'bond_warmth',   name: 'ไออุ่นผีน้อย',     icon: '🤝', desc: 'Bond ที่ได้รับจาก Adventure +5' },
 ];
 
-export default function Adventure() {
-  const { save, applyAdventureChoice } = useGameStore();
-  const [currentIdx, setCurrentIdx] = useState(() => Math.floor(Math.random() * EVENTS.length));
-  const [chosen, setChosen]         = useState<string | null>(null);
-  const [showOutcome, setShowOutcome] = useState(false);
-  const [applying, setApplying]     = useState(false);
+const COMBAT_TEXTS: Record<string, string[]> = {
+  zone_01: ['ปอบเร่ร่อนผุดขึ้น', 'ผีดิบลุกจากดิน', 'กระสือโฉบผ่านมา'],
+  zone_02: ['กุมารทองกลับบ้านเก่า', 'นางตานีระบายโกรธ', 'เปรตออกจากวัด'],
+  zone_03: ['แม่นาคออกจากบึง', 'กาลกิณีผุดกลางน้ำ', 'ศพน้ำลุกขึ้นสู้'],
+  zone_04: ['ผีตายโหงจากป่าช้า', 'ปีศาจเฝ้าหลุมศพ', 'เปรตโบราณตื่น'],
+  zone_05: ['อสุรกายลุกฮือ', 'แม่เจ้าของโกรธ', 'ทัพอสุรกายยกมา'],
+};
+const LOOT_TEXTS   = ['พบหีบศพเก่า', 'เจอของหายในพงหญ้า', 'ขุดเจอยันต์ฝังดิน', 'ผีนำทางหาสมบัติ', 'แสงวิบวับนำทาง'];
+const HAZARD_TEXTS = ['เหยียบตะปูโลงศพ', 'ถูกสาปอาถรรพ์', 'ลมเสียงผีโห่', 'กับดักดึงดูดวิญญาณ'];
 
-  const event    = EVENTS[currentIdx];
-  const choiceObj = event.choices.find(c => c.id === chosen);
+function pickBoons(n: number, exclude: string[]): BoonDef[] {
+  return [...ALL_BOONS].filter(b => !exclude.includes(b.id)).sort(() => Math.random() - 0.5).slice(0, n);
+}
+
+// ─── Event roller ─────────────────────────────────────────────────────────────
+function rollStep(s: Session, zoneId: string, teamAvgLv: number): {
+  delta: Partial<Session>; lines: LogLine[]; boonCards: BoonDef[]
+} {
+  const r = Math.random();
+  const lines: LogLine[] = [];
+  let delta: Partial<Session> = {};
+  let boonCards: BoonDef[] = [];
+
+  const expMul  = s.activeBoons.includes('exp_boost')   ? 1.4  : 1;
+  const dustMul = s.activeBoons.includes('dust_bonus')  ? 1.6  : 1;
+  const dmgMul  = s.activeBoons.includes('ghost_speed') ? 0.5  : 1;
+  const critDbl = s.activeBoons.includes('crit_yant');
+
+  if (r < 0.40) {
+    // ── COMBAT ──────────────────────────────────────────────
+    const flavors = COMBAT_TEXTS[zoneId] ?? COMBAT_TEXTS['zone_01'];
+    lines.push({ text: `⚔️  ${flavors[Math.floor(Math.random() * flavors.length)]}!`, color: '#fb7185' });
+    const enemyLv  = Math.max(1, teamAvgLv + Math.floor(Math.random() * 4) - 2);
+    const winChance = Math.min(0.88, Math.max(0.3, teamAvgLv / (enemyLv * 1.1)));
+    const won = Math.random() < winChance;
+    if (won) {
+      const hp2  = Math.floor(Math.random() * 8 * dmgMul);
+      let dust2  = Math.floor(enemyLv * 2 * (critDbl ? 2 : 1));
+      const exp2 = Math.floor(enemyLv * 13 * expMul);
+      const corrBonus = s.activeBoons.includes('poison_debuff') ? -2 : 0;
+      lines.push({ text: `  ✅ ชนะ! EXP +${exp2}  ฝุ่น +${dust2}  HP -${hp2}%`, color: '#34d399' });
+      delta = {
+        dustEarned: s.dustEarned + dust2,
+        expEarned:  s.expEarned  + exp2,
+        hpPct:  Math.max(0, s.hpPct - hp2),
+        corruptionGain: s.corruptionGain + corrBonus,
+      };
+    } else {
+      const hp2  = Math.floor((12 + Math.random() * 15) * dmgMul);
+      const exp2 = Math.floor(enemyLv * 5 * expMul);
+      lines.push({ text: `  ❌ แพ้! HP -${hp2}%  EXP +${exp2}`, color: '#f97316' });
+      delta = { expEarned: s.expEarned + exp2, hpPct: Math.max(0, s.hpPct - hp2) };
+    }
+
+  } else if (r < 0.70) {
+    // ── LOOT ────────────────────────────────────────────────
+    const txt  = LOOT_TEXTS[Math.floor(Math.random() * LOOT_TEXTS.length)];
+    const dust = Math.floor((8 + Math.random() * teamAvgLv * 3) * dustMul);
+    lines.push({ text: `💰 ${txt}`, color: '#fbbf24' });
+    lines.push({ text: `   🌀 ฝุ่นวิญญาณ +${dust}`, color: '#fcd34d' });
+    delta = { dustEarned: s.dustEarned + dust };
+
+  } else if (r < 0.90) {
+    // ── BOON ────────────────────────────────────────────────
+    lines.push({ text: '✨ พรศักดิ์สิทธิ์ปรากฏ! หยุดพักเพื่อเลือก...', color: '#a78bfa' });
+    boonCards = pickBoons(3, s.activeBoons);
+    delta = { phase: 'boon' };
+
+  } else {
+    // ── HAZARD ──────────────────────────────────────────────
+    if (s.activeBoons.includes('dodge_hazard')) {
+      lines.push({ text: '📜 ตราคุ้มครองปัดป้องภัย! รอดปลอดภัย ✓', color: '#94a3b8' });
+      delta = { activeBoons: s.activeBoons.filter(b => b !== 'dodge_hazard') };
+    } else {
+      const txt  = HAZARD_TEXTS[Math.floor(Math.random() * HAZARD_TEXTS.length)];
+      const hp2  = Math.floor(8 + Math.random() * 12);
+      lines.push({ text: `⚠️  ${txt}! HP -${hp2}%  ☠️ +3`, color: '#f97316' });
+      delta = { hpPct: Math.max(0, s.hpPct - hp2), corruptionGain: s.corruptionGain + 3 };
+    }
+  }
+
+  // Blood regen boon: every 3 steps heal 8%
+  if (s.activeBoons.includes('blood_regen') && (s.step + 1) % 3 === 0) {
+    const heal = 8;
+    const newHp = Math.min(100, (delta.hpPct ?? s.hpPct) + heal);
+    lines.push({ text: `💧 น้ำตาแม่นาค ฟื้น HP +${heal}%`, color: '#60a5fa' });
+    delta = { ...delta, hpPct: newHp };
+  }
+
+  return { delta, lines, boonCards };
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
+export default function Adventure() {
+  const { save, team, applyAdventureChoice, addBattleRewards } = useGameStore();
+  const zone     = getZoneDef(save?.zone_id ?? 'zone_01');
   const corruption = save?.corruption_score ?? 0;
 
-  function handleChoice(choiceId: string) {
-    if (applying || showOutcome) return;
-    const choice = event.choices.find(c => c.id === choiceId);
-    if (!choice) return;
-    setChosen(choiceId);
-    setShowOutcome(true);
-    setApplying(true);
-    applyAdventureChoice(
-      event.id,
-      choiceId,
-      choice.corruptionDelta,
-      choice.dustReward ?? 0,
-      choice.bondGain ?? 0,
-    ).finally(() => setApplying(false));
+  const [session,     setSession]     = useState<Session | null>(null);
+  const [boonOptions, setBoonOptions] = useState<BoonDef[]>([]);
+  const [saving,      setSaving]      = useState(false);
+
+  const tickRef    = useRef<number | null>(null);
+  const sessionRef = useRef<Session | null>(null);
+  const logRef     = useRef<HTMLDivElement>(null);
+
+  // Keep ref in sync for use in setInterval (avoids stale closure)
+  useEffect(() => { sessionRef.current = session; }, [session]);
+
+  // Auto-scroll log
+  useEffect(() => {
+    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
+  }, [session?.log.length]);
+
+  // Cleanup on unmount
+  useEffect(() => () => { if (tickRef.current) clearInterval(tickRef.current); }, []);
+
+  const teamAvgLv = team.length > 0
+    ? Math.round(team.reduce((s, g) => s + g.level, 0) / team.length)
+    : 1;
+
+  const doTick = useCallback(() => {
+    const s = sessionRef.current;
+    if (!s || s.phase !== 'walking') return;
+
+    const { delta, lines, boonCards } = rollStep(s, zone.id, teamAvgLv);
+    const newStep  = s.step + 1;
+    const newLog   = [...s.log, ...lines].slice(-30);
+
+    // Determine next phase
+    let nextPhase: AdvPhase = (delta.phase as AdvPhase) ?? 'walking';
+    if (nextPhase === 'walking' && newStep >= s.maxSteps) nextPhase = 'boss';
+
+    const newHp = delta.hpPct ?? s.hpPct;
+    if (newHp <= 0) nextPhase = 'defeat';
+
+    const next: Session = {
+      ...s, ...delta,
+      step:  newStep,
+      phase: nextPhase,
+      hpPct: newHp,
+      log:   nextPhase === 'defeat'
+        ? [...newLog, { text: '💀 HP หมด! การผจญภัยสิ้นสุดลง...', color: '#fb7185' }]
+        : nextPhase === 'boss'
+          ? [...newLog, { text: `👑 เดินทางมาถึงบอสประจำโซน — ${zone.name}!`, color: '#ff4757' }]
+          : newLog,
+    };
+
+    setSession(next);
+    if (boonCards.length > 0) setBoonOptions(boonCards);
+    if (nextPhase !== 'walking') clearInterval(tickRef.current!);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zone.id, teamAvgLv]);
+
+  function startAdventure() {
+    if (tickRef.current) clearInterval(tickRef.current);
+    const init: Session = {
+      phase: 'walking', step: 0, maxSteps: MAX_STEPS,
+      hpPct: 100, dustEarned: 0, expEarned: 0, bondEarned: 0, corruptionGain: 0,
+      activeBoons: [],
+      log: [{ text: `🗺️  ออกเดินทางสู่ ${zone.name}... (${MAX_STEPS} ก้าว)`, color: '#7dd3fc' }],
+    };
+    setSession(init);
+    tickRef.current = window.setInterval(doTick, TICK_MS);
   }
 
-  function nextEvent() {
-    let next = currentIdx;
-    if (EVENTS.length > 1) {
-      while (next === currentIdx) next = Math.floor(Math.random() * EVENTS.length);
+  function chooseBoon(boon: BoonDef) {
+    setSession(prev => {
+      if (!prev) return prev;
+      const bondBonus = boon.id === 'bond_warmth' ? 5 : 0;
+      const next: Session = {
+        ...prev,
+        phase: 'walking',
+        activeBoons: [...prev.activeBoons, boon.id],
+        bondEarned: prev.bondEarned + bondBonus,
+        log: [...prev.log, { text: `✨ เลือก: ${boon.icon} ${boon.name} — ${boon.desc}`, color: '#c4b5fd' }],
+      };
+      // Resume from next step if still have steps left
+      if (next.step >= next.maxSteps) return { ...next, phase: 'boss' };
+      return next;
+    });
+    setBoonOptions([]);
+    tickRef.current = window.setInterval(doTick, TICK_MS);
+  }
+
+  function fightBoss() {
+    const bossLv      = zone.bossLevel;
+    const winChance   = Math.min(0.85, Math.max(0.25, teamAvgLv / (bossLv * 1.4)));
+    const won         = Math.random() < winChance;
+    const dustReward  = Math.floor(bossLv * 8);
+    const expReward   = Math.floor(bossLv * 30);
+    const bondReward  = 5;
+    const s = sessionRef.current;
+    if (!s) return;
+
+    const bossLines: LogLine[] = [
+      { text: `⚔️  บอส: ${zone.bossTypes.map(t => GHOST_REG[t]?.nameTh ?? t).join(', ')} Lv.${bossLv}`, color: '#fb7185' },
+    ];
+
+    if (won) {
+      bossLines.push({ text: `🏆 ชนะบอส!  ฝุ่น +${dustReward}  EXP +${expReward}  Bond +${bondReward}`, color: '#34d399' });
+      setSession({
+        ...s,
+        phase: 'clear',
+        dustEarned: s.dustEarned + dustReward,
+        expEarned:  s.expEarned  + expReward,
+        bondEarned: s.bondEarned + bondReward,
+        log: [...s.log, ...bossLines],
+      });
+    } else {
+      bossLines.push({ text: `💀 แพ้บอส... ได้รางวัลระหว่างทาง 50%`, color: '#f97316' });
+      setSession({
+        ...s,
+        phase: 'defeat',
+        dustEarned: Math.floor(s.dustEarned * 0.5),
+        expEarned:  Math.floor(s.expEarned  * 0.5),
+        bondEarned: Math.floor(s.bondEarned * 0.5),
+        log: [...s.log, ...bossLines],
+      });
     }
-    setCurrentIdx(next);
-    setChosen(null);
-    setShowOutcome(false);
-    setApplying(false);
   }
 
-  return (
-    <div className="screen fade-in">
-      <ScreenHeader title="📜 ผจญภัย" />
+  async function collectRewards() {
+    const s = session;
+    if (!s || saving) return;
+    setSaving(true);
+    try {
+      // Apply dust + corruption + bond via existing action
+      await applyAdventureChoice(
+        'adv_run', s.phase,
+        s.corruptionGain, s.dustEarned, s.bondEarned,
+      );
+      // Apply EXP to team ghosts via battle rewards pattern
+      if (s.expEarned > 0 && team.length > 0) {
+        await addBattleRewards(team.map(g => g.id), Math.max(1, Math.floor(s.expEarned / 15)));
+      }
+    } finally {
+      setSaving(false);
+      setSession(null);
+    }
+  }
 
-      <div className="screen-content">
-        {/* Corruption bar */}
-        <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-            <span style={{ fontSize: 13, fontWeight: 700 }}>☠️ Corruption</span>
-            <span style={{
-              fontFamily: 'JetBrains Mono, monospace', fontWeight: 700,
-              color: corruption >= 70 ? 'var(--red)' : corruption >= 40 ? 'var(--orange)' : 'var(--green)',
-            }}>
-              {corruption}%
-            </span>
-          </div>
+  // ── RENDER HELPERS ──────────────────────────────────────────────────────────
+  function LogBox() {
+    return (
+      <div style={{
+        background: 'rgba(2, 8, 20, 0.96)',
+        border: '1px solid rgba(38,222,129,0.2)',
+        borderRadius: 'var(--r-lg)',
+        padding: '10px 12px',
+        fontFamily: 'JetBrains Mono, monospace',
+        fontSize: 12,
+        maxHeight: 200,
+        overflowY: 'auto',
+        lineHeight: 1.7,
+      }} ref={logRef}>
+        {(session?.log ?? []).map((line, i) => (
+          <div key={i} style={{ color: line.color }}>{line.text}</div>
+        ))}
+        {session?.phase === 'walking' && (
+          <div style={{ color: '#475569' }} className="pulse">█</div>
+        )}
+      </div>
+    );
+  }
+
+  function StatusBar() {
+    const s = session!;
+    return (
+      <div style={{ display: 'flex', gap: 8 }}>
+        {/* HP */}
+        <div style={{ flex: 2, background: 'var(--bg-card)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>HP ทีม</div>
           <div className="bar-track">
-            <div className="bar-fill bar-corruption" style={{ width: `${corruption}%` }} />
+            <div className={`bar-fill ${s.hpPct < 30 ? 'bar-hp-low' : 'bar-hp'}`}
+              style={{ width: `${s.hpPct}%`, transition: 'width 0.4s' }} />
+          </div>
+          <div style={{ fontSize: 11, color: s.hpPct < 30 ? 'var(--red)' : 'var(--text-muted)', marginTop: 3 }}>
+            {Math.floor(s.hpPct)}%
           </div>
         </div>
-
-        {/* Event card */}
-        <div className="card" style={{
-          background: 'linear-gradient(135deg, rgba(165,94,234,0.08), var(--bg-card))',
-          border: '1px solid rgba(165,94,234,0.2)',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-            <span style={{ fontSize: 40 }}>{event.icon}</span>
-            <div>
-              <div style={{ fontFamily: 'Bai Jamjuree, sans-serif', fontSize: 18, fontWeight: 700 }}>
-                {event.title}
-              </div>
-              <div className="label-sm">เหตุการณ์สุ่ม</div>
-            </div>
-          </div>
-
-          <p style={{ fontSize: 14, color: 'var(--text-light)', lineHeight: 1.8, marginBottom: 20, fontStyle: 'italic' }}>
-            "{event.text}"
-          </p>
-
-          {!showOutcome ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {event.choices.map(choice => (
-                <button
-                  key={choice.id}
-                  type="button"
-                  onClick={() => handleChoice(choice.id)}
-                  style={{
-                    padding: '12px 14px',
-                    background: 'var(--bg-elevated)',
-                    border: '1.5px solid rgba(255,255,255,0.1)',
-                    borderRadius: 'var(--r-lg)',
-                    color: 'var(--text-white)',
-                    fontFamily: 'inherit', fontSize: 14, fontWeight: 600,
-                    cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s',
-                    display: 'flex', alignItems: 'center', gap: 10,
-                  }}
-                >
-                  <span style={{ flex: 1 }}>{choice.text}</span>
-                  <span style={{ display: 'flex', gap: 6, flexShrink: 0, fontSize: 11 }}>
-                    {choice.corruptionDelta !== 0 && (
-                      <span style={{ fontWeight: 700, color: choice.corruptionDelta > 0 ? 'var(--red)' : 'var(--green)' }}>
-                        {choice.corruptionDelta > 0 ? `+${choice.corruptionDelta}` : choice.corruptionDelta}☠️
-                      </span>
-                    )}
-                    {choice.dustReward && <span style={{ color: 'var(--gold)', fontWeight: 700 }}>+{choice.dustReward}🌀</span>}
-                    {choice.bondGain   && <span style={{ color: '#a78bfa',   fontWeight: 700 }}>+{choice.bondGain}💞</span>}
-                  </span>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {/* Outcome box */}
-              <div style={{
-                padding: '14px',
-                background: (choiceObj?.corruptionDelta ?? 0) < 0
-                  ? 'rgba(38,222,129,0.1)' : (choiceObj?.corruptionDelta ?? 0) > 0
-                  ? 'rgba(255,71,87,0.1)' : 'rgba(255,255,255,0.05)',
-                border: `1px solid ${(choiceObj?.corruptionDelta ?? 0) < 0 ? 'rgba(38,222,129,0.3)' : (choiceObj?.corruptionDelta ?? 0) > 0 ? 'rgba(255,71,87,0.3)' : 'rgba(255,255,255,0.1)'}`,
-                borderRadius: 'var(--r-md)',
-              }}>
-                <div style={{ fontWeight: 700, marginBottom: 6 }}>ผลลัพธ์:</div>
-                <div style={{ fontSize: 14, color: 'var(--text-light)', marginBottom: 10 }}>
-                  {choiceObj?.outcome}
-                </div>
-                {/* Reward chips */}
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {(choiceObj?.corruptionDelta ?? 0) !== 0 && (
-                    <span style={{
-                      padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 700,
-                      background: (choiceObj!.corruptionDelta) < 0 ? 'rgba(38,222,129,0.2)' : 'rgba(255,71,87,0.2)',
-                      color: (choiceObj!.corruptionDelta) < 0 ? 'var(--green)' : 'var(--red)',
-                    }}>
-                      ☠️ {(choiceObj!.corruptionDelta) > 0 ? '+' : ''}{choiceObj!.corruptionDelta}%
-                    </span>
-                  )}
-                  {(choiceObj?.dustReward ?? 0) > 0 && (
-                    <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 700, background: 'rgba(245,197,24,0.15)', color: 'var(--gold)' }}>
-                      🌀 +{choiceObj!.dustReward} ฝุ่น
-                    </span>
-                  )}
-                  {(choiceObj?.bondGain ?? 0) > 0 && (
-                    <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 700, background: 'rgba(167,139,250,0.15)', color: '#a78bfa' }}>
-                      💞 Bond +{choiceObj!.bondGain} ทุกตัว
-                    </span>
-                  )}
-                  {applying && (
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)', alignSelf: 'center' }}>กำลังบันทึก...</span>
-                  )}
-                </div>
-              </div>
-
-              <button type="button" className="btn btn-gold btn-full" onClick={nextEvent} disabled={applying}>
-                ➡️ เหตุการณ์ถัดไป
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Mentor bonds */}
-        <div className="card">
-          <div className="label-sm" style={{ marginBottom: 10 }}>Bond ที่ปรึกษา</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {[
-              { key: 'phra',      label: '🙏 พระ',       color: 'var(--gold)' },
-              { key: 'chee',      label: '🧘 ชี',         color: 'var(--green)' },
-              { key: 'mo_jeen',   label: '🔮 หมอจีน',    color: 'var(--red)' },
-              { key: 'mo_farang', label: '⚗️ หมอฝรั่ง', color: 'var(--blue)' },
-            ].map(m => {
-              const bonds = save?.mentor_bonds as Record<string, number> | undefined;
-              const val = bonds?.[m.key] ?? 0;
-              return (
-                <div key={m.key} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 14, width: 80, flexShrink: 0 }}>{m.label}</span>
-                  <div className="bar-track" style={{ flex: 1 }}>
-                    <div className="bar-fill" style={{ width: `${val}%`, background: m.color }} />
-                  </div>
-                  <span className="mono" style={{ fontSize: 11, width: 24, textAlign: 'right', color: 'var(--text-muted)' }}>
-                    {val}
-                  </span>
-                </div>
-              );
-            })}
+        {/* Resources collected */}
+        <div style={{ flex: 3, background: 'var(--bg-card)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>สะสมระหว่างทาง</div>
+          <div style={{ display: 'flex', gap: 10, fontSize: 12, fontFamily: 'JetBrains Mono, monospace' }}>
+            <span style={{ color: 'var(--gold)' }}>🌀{s.dustEarned}</span>
+            <span style={{ color: 'var(--green)' }}>⚡{s.expEarned}</span>
+            <span style={{ color: '#a78bfa' }}>💞{s.bondEarned}</span>
           </div>
         </div>
       </div>
+    );
+  }
 
-      <BottomNav />
+  // ── IDLE ────────────────────────────────────────────────────────────────────
+  if (!session) {
+    return (
+      <div className="screen fade-in">
+        <ScreenHeader title="📜 ผจญภัย" />
+        <div className="screen-content">
+          {/* Corruption */}
+          <div className="card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+              <span style={{ fontWeight: 700, fontSize: 13 }}>☠️ Corruption</span>
+              <span style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 700, color: corruption >= 70 ? 'var(--red)' : corruption >= 40 ? 'var(--orange)' : 'var(--green)' }}>
+                {corruption}%
+              </span>
+            </div>
+            <div className="bar-track">
+              <div className="bar-fill bar-corruption" style={{ width: `${corruption}%` }} />
+            </div>
+          </div>
+
+          {/* Zone info */}
+          <div className="card" style={{
+            background: 'linear-gradient(135deg, rgba(165,94,234,0.1), var(--bg-card))',
+            border: '1px solid rgba(165,94,234,0.25)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+              <span style={{ fontSize: 36 }}>{zone.icon}</span>
+              <div>
+                <div style={{ fontFamily: 'Bai Jamjuree, sans-serif', fontSize: 17, fontWeight: 700 }}>
+                  {zone.name}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{zone.desc}</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 12, fontSize: 12, color: 'var(--text-muted)', marginBottom: 14 }}>
+              <span>🚶 {MAX_STEPS} ก้าว</span>
+              <span>⚔️ ศัตรู Lv.{zone.levelRange[0]}-{zone.levelRange[1]}</span>
+              <span>👑 บอส Lv.{zone.bossLevel}</span>
+            </div>
+            {/* Event type breakdown */}
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
+              {[
+                { label: '⚔️ Combat', pct: '40%', color: '#fb7185' },
+                { label: '💰 Loot',   pct: '30%', color: '#fbbf24' },
+                { label: '✨ Boon',   pct: '20%', color: '#a78bfa' },
+                { label: '⚠️ Hazard', pct: '10%', color: '#f97316' },
+              ].map(e => (
+                <span key={e.label} style={{
+                  padding: '3px 8px', borderRadius: 20, fontSize: 11,
+                  background: 'rgba(255,255,255,0.05)',
+                  color: e.color, fontWeight: 700,
+                }}>
+                  {e.label} {e.pct}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Team preview */}
+          {team.length > 0 && (
+            <div>
+              <div className="section-hd"><span className="section-title">⚔️ ทีมที่จะออกเดินทาง</span></div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {team.map(g => {
+                  const def = GHOST_REG[g.ghost_type];
+                  if (!def) return null;
+                  return (
+                    <div key={g.id} style={{
+                      flex: 1, background: 'var(--bg-card)',
+                      border: '1px solid rgba(255,255,255,0.08)',
+                      borderRadius: 'var(--r-lg)', padding: '10px 8px',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                    }}>
+                      <Chibi emoji={def.emoji} element={def.element} size={44} evoStage={g.evo_stage} />
+                      <div style={{ fontSize: 11, fontWeight: 700, textAlign: 'center' }}>{g.nickname || def.nameTh}</div>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Lv.{g.level}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {team.length === 0 && (
+            <div className="card" style={{ textAlign: 'center', padding: '16px', background: 'rgba(255,71,87,0.07)', border: '1px solid rgba(255,71,87,0.2)' }}>
+              <div style={{ fontSize: 13, color: 'var(--red)' }}>⚠️ ต้องมีผีในทีมก่อนออกผจญภัย</div>
+            </div>
+          )}
+
+          <button
+            type="button"
+            className="btn btn-full btn-lg"
+            disabled={team.length === 0}
+            onClick={startAdventure}
+            style={{
+              background: team.length === 0 ? 'rgba(165,94,234,0.2)' : 'linear-gradient(135deg, #7c3aed, #a855f7)',
+              border: 'none', color: '#fff', opacity: team.length === 0 ? 0.5 : 1,
+            }}
+          >
+            🗺️ ออกพเนจร!
+          </button>
+        </div>
+        <BottomNav />
+      </div>
+    );
+  }
+
+  // ── BOON SELECTION ──────────────────────────────────────────────────────────
+  if (session.phase === 'boon') {
+    return (
+      <div className="screen fade-in">
+        <ScreenHeader title="✨ เลือกพรศักดิ์สิทธิ์" />
+        <div className="screen-content">
+          <LogBox />
+          <StatusBar />
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(124,58,237,0.15), rgba(168,85,247,0.05))',
+            border: '1.5px solid rgba(168,85,247,0.4)',
+            borderRadius: 'var(--r-lg)', padding: '14px',
+            textAlign: 'center', animation: 'popIn 0.3s ease-out',
+          }}>
+            <div style={{ fontSize: 24, marginBottom: 4 }}>✨</div>
+            <div style={{ fontWeight: 700, fontSize: 15, color: '#c4b5fd', fontFamily: 'Bai Jamjuree, sans-serif' }}>
+              พรศักดิ์สิทธิ์ปรากฏ!
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>เลือก 1 ใน 3 เพื่อเสริมพลังตลอดการผจญภัย</div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {boonOptions.map(boon => (
+              <button
+                key={boon.id}
+                type="button"
+                onClick={() => chooseBoon(boon)}
+                style={{
+                  background: 'var(--bg-card)',
+                  border: '1.5px solid rgba(167,139,250,0.3)',
+                  borderRadius: 'var(--r-lg)',
+                  padding: '14px',
+                  cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  textAlign: 'left', transition: 'all 0.15s',
+                }}
+              >
+                <span style={{ fontSize: 28 }}>{boon.icon}</span>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: '#c4b5fd', fontFamily: 'Bai Jamjuree, sans-serif' }}>
+                    {boon.name}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{boon.desc}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── BOSS ────────────────────────────────────────────────────────────────────
+  if (session.phase === 'boss') {
+    return (
+      <div className="screen fade-in">
+        <ScreenHeader title="👑 บอสประจำโซน" />
+        <div className="screen-content">
+          <LogBox />
+          <StatusBar />
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(255,71,87,0.15), rgba(255,71,87,0.05))',
+            border: '2px solid rgba(255,71,87,0.5)',
+            borderRadius: 'var(--r-lg)', padding: '18px',
+            textAlign: 'center', animation: 'popIn 0.3s ease-out',
+          }}>
+            <div style={{ fontSize: 32, marginBottom: 8 }}>{zone.icon}</div>
+            <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--red)', fontFamily: 'Bai Jamjuree, sans-serif', marginBottom: 4 }}>
+              บอส: {zone.bossTypes.map(t => GHOST_REG[t]?.nameTh ?? t).join(' + ')}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
+              Lv.{zone.bossLevel} — {zone.bossTypes.length} ตัว
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginBottom: 16 }}>
+              {zone.bossTypes.map(t => {
+                const def = GHOST_REG[t];
+                if (!def) return null;
+                return <Chibi key={t} emoji={def.emoji} element={def.element} size={52} />;
+              })}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14 }}>
+              รางวัลชนะ: 🌀 +{Math.floor(zone.bossLevel * 8)}  ⚡ +{Math.floor(zone.bossLevel * 30)}  💞 +5
+            </div>
+            {session.activeBoons.length > 0 && (
+              <div style={{ fontSize: 11, color: '#a78bfa', marginBottom: 14 }}>
+                พรที่ใช้งาน: {session.activeBoons.map(id => ALL_BOONS.find(b => b.id === id)?.icon ?? '').join(' ')}
+              </div>
+            )}
+          </div>
+          <button type="button" className="btn btn-red btn-full btn-lg" onClick={fightBoss}>
+            ⚔️ เผชิญหน้าบอส!
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── CLEAR / DEFEAT ──────────────────────────────────────────────────────────
+  if (session.phase === 'clear' || session.phase === 'defeat') {
+    const won = session.phase === 'clear';
+    return (
+      <div className="screen fade-in">
+        <ScreenHeader title={won ? '🏆 ผจญภัยสำเร็จ!' : '💀 ล้มเหลว...'} />
+        <div className="screen-content">
+          <LogBox />
+          <div style={{
+            background: won
+              ? 'linear-gradient(135deg, rgba(38,222,129,0.15), rgba(38,222,129,0.03))'
+              : 'linear-gradient(135deg, rgba(255,71,87,0.12), rgba(255,71,87,0.03))',
+            border: `1.5px solid ${won ? 'rgba(38,222,129,0.4)' : 'rgba(255,71,87,0.4)'}`,
+            borderRadius: 'var(--r-lg)', padding: '18px', animation: 'popIn 0.4s ease-out',
+          }}>
+            <div style={{ textAlign: 'center', fontSize: 28, marginBottom: 8 }}>{won ? '🏆' : '💀'}</div>
+            <div style={{ textAlign: 'center', fontWeight: 700, fontSize: 16, color: won ? 'var(--green)' : 'var(--red)', fontFamily: 'Bai Jamjuree, sans-serif', marginBottom: 16 }}>
+              {won ? 'โซนผ่านแล้ว!' : 'กลับด้วยมือเปล่า...'}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {[
+                { icon: '🌀', label: 'ฝุ่นวิญญาณ',  val: `+${session.dustEarned}`,     color: 'var(--gold)' },
+                { icon: '⚡', label: 'EXP ทีม',       val: `+${session.expEarned}`,      color: 'var(--green)' },
+                { icon: '💞', label: 'Bond ทีม',       val: `+${session.bondEarned}`,     color: '#a78bfa' },
+                { icon: '☠️', label: 'Corruption',     val: `+${session.corruptionGain}`, color: session.corruptionGain > 0 ? 'var(--red)' : 'var(--green)' },
+              ].map(r => (
+                <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                  <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{r.icon} {r.label}</span>
+                  <span style={{ fontWeight: 700, fontFamily: 'JetBrains Mono, monospace', color: r.color }}>{r.val}</span>
+                </div>
+              ))}
+            </div>
+            {session.activeBoons.length > 0 && (
+              <div style={{ marginTop: 10, fontSize: 11, color: 'var(--text-muted)' }}>
+                พรที่ใช้ไป: {session.activeBoons.map(id => {
+                  const b = ALL_BOONS.find(x => x.id === id);
+                  return b ? `${b.icon}${b.name}` : '';
+                }).join('  ')}
+              </div>
+            )}
+          </div>
+          <button
+            type="button"
+            className="btn btn-gold btn-full btn-lg"
+            disabled={saving}
+            onClick={collectRewards}
+          >
+            {saving ? '⏳ กำลังบันทึก...' : `${won ? '🎉 รับรางวัลและกลับฐาน' : '↩️ กลับฐาน'}`}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── WALKING ─────────────────────────────────────────────────────────────────
+  return (
+    <div className="screen fade-in">
+      <ScreenHeader title={`🗺️ ${zone.name}`} />
+      <div className="screen-content">
+        {/* Step progress */}
+        <div style={{ background: 'var(--bg-card)', borderRadius: 'var(--r-lg)', padding: '12px 14px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 8 }}>
+            <span style={{ color: 'var(--text-muted)' }}>ก้าวที่ {session.step}/{session.maxSteps}</span>
+            <span style={{ color: session.step >= session.maxSteps - 2 ? 'var(--red)' : 'var(--gold)', fontWeight: 700 }}>
+              {session.step >= session.maxSteps - 1 ? '👑 บอสรออยู่!' : `${session.maxSteps - session.step} ก้าวถึงบอส`}
+            </span>
+          </div>
+          <div style={{ display: 'flex', gap: 3 }}>
+            {Array.from({ length: session.maxSteps }).map((_, i) => (
+              <div key={i} style={{
+                flex: 1, height: 7, borderRadius: 4,
+                background: i < session.step
+                  ? 'var(--green)'
+                  : i === session.step
+                    ? 'rgba(245,197,24,0.7)'
+                    : 'rgba(255,255,255,0.07)',
+                transition: 'background 0.3s',
+              }} />
+            ))}
+          </div>
+        </div>
+
+        <StatusBar />
+
+        {/* Active boons */}
+        {session.activeBoons.length > 0 && (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {session.activeBoons.map(id => {
+              const b = ALL_BOONS.find(x => x.id === id);
+              if (!b) return null;
+              return (
+                <span key={id} style={{
+                  padding: '3px 8px', borderRadius: 20, fontSize: 11,
+                  background: 'rgba(167,139,250,0.15)', color: '#c4b5fd', fontWeight: 700,
+                }}>
+                  {b.icon} {b.name}
+                </span>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Terminal log */}
+        <LogBox />
+
+        {/* Retreat button */}
+        <button
+          type="button"
+          onClick={() => {
+            clearInterval(tickRef.current!);
+            setSession(prev => prev ? {
+              ...prev,
+              phase: 'defeat',
+              dustEarned:  Math.floor(prev.dustEarned  * 0.5),
+              expEarned:   Math.floor(prev.expEarned   * 0.5),
+              bondEarned:  Math.floor(prev.bondEarned  * 0.5),
+              log: [...prev.log, { text: '🏳️ ถอยทัพ... ได้รับรางวัล 50%', color: '#94a3b8' }],
+            } : prev);
+          }}
+          style={{
+            background: 'transparent',
+            border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: 'var(--r-md)',
+            color: 'var(--text-muted)',
+            padding: '8px',
+            fontSize: 12,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            width: '100%',
+          }}
+        >
+          🏳️ ถอยทัพ (ได้รางวัล 50%)
+        </button>
+      </div>
     </div>
   );
 }
