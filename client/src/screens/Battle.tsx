@@ -239,6 +239,7 @@ export default function Battle() {
   const [opponent, setOpponent]             = useState<{ username: string; team: Ghost[] } | null>(null);
   const [exorcistGauge, setExorcistGauge]   = useState(0);
   const [fleeing, setFleeing]               = useState(false);
+  const [battleSpeed, setBattleSpeed]       = useState<1|2|3|4>(1);
   const [attackAnim, setAttackAnim]         = useState<AttackAnim | null>(null);
   const tickRef         = useRef<number | null>(null);
   const logRef          = useRef<HTMLDivElement>(null);
@@ -584,10 +585,11 @@ export default function Battle() {
         }
         return result;
       });
-    }, 100);
+    }, Math.floor(100 / battleSpeed));
 
     return () => { if (tickRef.current) clearInterval(tickRef.current); };
-  }, [phase]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, battleSpeed]);
 
   useEffect(() => {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
@@ -1008,15 +1010,32 @@ export default function Battle() {
                   </div>
                 )}
               </div>
-              {/* Status bar + flee button */}
+              {/* Status bar + speed + flee button */}
               {!fleeing ? (
                 <div style={{
-                  display: 'flex', alignItems: 'center', gap: 8,
+                  display: 'flex', alignItems: 'center', gap: 6,
                   background: 'var(--bg-card)', borderRadius: 'var(--r-lg)',
-                  padding: '8px 12px',
+                  padding: '7px 10px',
                 }}>
-                  <span className="pulse" style={{ flex: 1, color: 'var(--text-muted)', fontSize: 13 }}>
-                    ⏳ กำลังต่อสู้ (Auto ATB)...
+                  {/* Speed buttons */}
+                  {([1,2,3,4] as const).map(s => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => setBattleSpeed(s)}
+                      style={{
+                        padding: '4px 7px', fontSize: 11, fontWeight: 700,
+                        borderRadius: 5, cursor: 'pointer',
+                        background: battleSpeed === s ? 'rgba(245,197,24,0.25)' : 'rgba(255,255,255,0.06)',
+                        border: `1px solid ${battleSpeed === s ? 'rgba(245,197,24,0.7)' : 'rgba(255,255,255,0.1)'}`,
+                        color: battleSpeed === s ? 'var(--gold)' : 'var(--text-muted)',
+                      }}
+                    >
+                      x{s}
+                    </button>
+                  ))}
+                  <span className="pulse" style={{ flex: 1, color: 'var(--text-muted)', fontSize: 12, textAlign: 'center' }}>
+                    ⏳ Auto ATB
                   </span>
                   <button
                     type="button"
@@ -1024,10 +1043,10 @@ export default function Battle() {
                     style={{
                       background: 'rgba(255,71,87,0.12)', border: '1px solid rgba(255,71,87,0.35)',
                       borderRadius: 6, color: 'var(--red)', fontSize: 11, fontWeight: 700,
-                      padding: '5px 10px', cursor: 'pointer',
+                      padding: '4px 9px', cursor: 'pointer',
                     }}
                   >
-                    🏳️ ถอยทัพ
+                    🏳️ ถอย
                   </button>
                 </div>
               ) : (
