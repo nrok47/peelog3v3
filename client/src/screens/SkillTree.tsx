@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { GHOST_REG } from '../data/ghosts';
+import Chibi from '../components/Chibi';
 import ScreenHeader from '../components/ScreenHeader';
 
 interface Node {
@@ -70,17 +71,48 @@ export default function SkillTree() {
       <ScreenHeader title="🌳 Skill Tree" back />
 
       <div className="screen-content">
-        {/* Ghost selector */}
-        <div className="chip-row">
+        {/* Ghost selector — card grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
           {ghosts.map(g => {
             const d = GHOST_REG[g.ghost_type];
+            const pts = (g.stat_points ?? 0) - (g.skill_tree?.points_spent ?? 0);
+            const active = selectedId === g.id;
             return (
               <button
                 key={g.id}
-                className={`chip${selectedId === g.id ? ' active' : ''}`}
                 onClick={() => setSelectedId(g.id)}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 4,
+                  padding: '10px 6px',
+                  background: active
+                    ? 'linear-gradient(135deg, rgba(165,94,234,0.25), var(--bg-card))'
+                    : 'var(--bg-card)',
+                  border: active
+                    ? '2px solid var(--purple)'
+                    : '1.5px solid rgba(255,255,255,0.07)',
+                  borderRadius: 'var(--r-lg)',
+                  cursor: 'pointer',
+                  position: 'relative',
+                  transition: 'all 0.15s',
+                }}
               >
-                {d?.emoji} {g.nickname || d?.nameTh}
+                {pts > 0 && (
+                  <div style={{
+                    position: 'absolute', top: 5, right: 5,
+                    width: 16, height: 16, borderRadius: '50%',
+                    background: 'var(--gold)', color: '#0b1120',
+                    fontSize: 10, fontWeight: 700,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>{pts}</div>
+                )}
+                <Chibi emoji={d?.emoji ?? '👻'} element={d?.element ?? 'dark'} size={44} evoStage={g.evo_stage} />
+                <div style={{ fontSize: 11, fontWeight: 700, textAlign: 'center', lineHeight: 1.2, color: 'var(--text-white)' }}>
+                  {g.nickname || d?.nameTh}
+                </div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Lv.{g.level}</div>
               </button>
             );
           })}
