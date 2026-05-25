@@ -13,6 +13,7 @@ interface GameStore extends GameState {
   updateGhost: (ghostId: string, changes: Partial<Ghost>) => Promise<void>;
   setTeam: (slots: { ghostId: string; slot: number }[]) => void;
   addSpiritDust: (amount: number) => void;
+  spendDust: (amount: number) => Promise<boolean>;
   summonGhost: (ghostType: string, cost: number) => Promise<Ghost>;
   addBattleRewards: (playerGhostIds: string[], avgEnemyLevel: number) => Promise<{ expGained: number; levelUps: string[]; dustGained: number }>;
   applyAdventureChoice: (eventId: string, choiceId: string, corruptionDelta: number, dustReward: number, bondGain: number) => Promise<void>;
@@ -128,6 +129,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set(state => ({
       player: state.player ? { ...state.player, spirit_dust: state.player.spirit_dust + amount } : null,
     }));
+  },
+
+  async spendDust(amount) {
+    const { player } = get();
+    if (!player || player.spirit_dust < amount) return false;
+    const newDust = player.spirit_dust - amount;
+    const { error } = await db.from('players').update({ spirit_dust: newDust }).eq('id', player.id);
+    if (error) return false;
+    set(state => ({
+      player: state.player ? { ...state.player, spirit_dust: newDust } : null,
+    }));
+    return true;
   },
 
   async addBattleRewards(playerGhostIds, avgEnemyLevel) {

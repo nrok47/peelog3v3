@@ -11,7 +11,7 @@ const EVO_REQ = [
 ];
 
 export default function Evolution() {
-  const { ghosts, team, updateGhost, player } = useGameStore();
+  const { ghosts, team, updateGhost, player, spendDust } = useGameStore();
   const [selectedId, setSelectedId] = useState(team[0]?.id ?? '');
   const [animating, setAnimating] = useState(false);
   const [msg, setMsg] = useState('');
@@ -26,6 +26,9 @@ export default function Evolution() {
     if (!ghost || !nextReq) return;
     if (ghost.level < nextReq.level) { setMsg(`❌ ต้องการ Lv.${nextReq.level}`); return; }
     if (dust < nextReq.dust)         { setMsg(`❌ ต้องการ ✨${nextReq.dust}`);  return; }
+
+    const ok = await spendDust(nextReq.dust);
+    if (!ok) { setMsg('❌ ตัดฝุ่นไม่สำเร็จ'); return; }
 
     setAnimating(true);
     await new Promise(r => setTimeout(r, 1200));

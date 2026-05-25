@@ -72,21 +72,65 @@ function getSkillBonuses(ghost: Ghost) {
 }
 
 function makeCombatant(ghost: Ghost, isPlayer: boolean): Combatant {
-  const def      = GHOST_REG[ghost.ghost_type];
-  const fallback = def?.baseStats ?? { hp: 1000, str: 30, mag: 20, def: 20, spr: 20, spd: 20 };
-  const saved    = ghost.stats ?? {};
-  const { statBonus, gutsMultiplier, atbStart, regenPct } = isPlayer
+  const ghostDef  = GHOST_REG[ghost.ghost_type];
+  const fallback  = ghostDef?.baseStats ?? { hp: 1000, str: 30, mag: 20, def: 20, spr: 20, spd: 20 };
+  const saved     = ghost.stats ?? {};
+  const { statBonus, gutsMultiplier: skillGutsMulti, atbStart, regenPct } = isPlayer
     ? getSkillBonuses(ghost)
     : { statBonus: { hp: 0, str: 0, mag: 0, def: 0, spr: 0, spd: 0 }, gutsMultiplier: 1, atbStart: 0, regenPct: 0 };
 
-  const boostedStats: GhostStats = {
-    hp:  (saved.hp  ?? fallback.hp)  + statBonus.hp,
-    str: (saved.str ?? fallback.str) + statBonus.str,
-    mag: (saved.mag ?? fallback.mag) + statBonus.mag,
-    def: (saved.def ?? fallback.def) + statBonus.def,
-    spr: (saved.spr ?? fallback.spr) + statBonus.spr,
-    spd: (saved.spd ?? fallback.spd) + statBonus.spd,
-  };
+  let hp  = (saved.hp  ?? fallback.hp)  + statBonus.hp;
+  let str = (saved.str ?? fallback.str) + statBonus.str;
+  let mag = (saved.mag ?? fallback.mag) + statBonus.mag;
+  let def = (saved.def ?? fallback.def) + statBonus.def;
+  let spr = (saved.spr ?? fallback.spr) + statBonus.spr;
+  let spd = (saved.spd ?? fallback.spd) + statBonus.spd;
+  let massGutsMulti = 1;
+
+  if (isPlayer) {
+    // Evolution: HP flat + STR/MAG % + SPD flat per stage
+    const stage = ghost.evo_stage ?? 0;
+    if (stage > 0) {
+      hp  += stage * 200;
+      str  = Math.round(str * (1 + stage * 0.08));
+      mag  = Math.round(mag * (1 + stage * 0.08));
+      spd += stage * 5;
+    }
+
+    // Frame: accumulated DEF/SPR stored in frame.base_def / frame.base_spr
+    if (ghost.frame?.enhancement > 0) {
+      def = ghost.frame.base_def;
+      spr = ghost.frame.base_spr;
+    }
+
+    // Spirit Mass affixes (simple numeric ones only)
+    for (const affix of ghost.spirit_mass?.affixes ?? []) {
+      const num = parseInt(affix.match(/\d+/)?.[0] ?? '0', 10);
+      if (!num) continue;
+      if      (affix.includes('ATK') && affix.includes('%')) str = Math.round(str * (1 + num / 100));
+      else if (affix.includes('DEF') && affix.includes('%')) def = Math.round(def * (1 + num / 100));
+      else if (affix.includes('MAG') && affix.includes('%')) mag = Math.round(mag * (1 + num / 100));
+      else if (affix.includes('SPR') && affix.includes('%')) spr = Math.round(spr * (1 + num / 100));
+      else if (affix.includes('SPD'))                        spd += num;
+      else if (affix.includes('HP') && !affix.includes('%')) hp  += num;
+      else if (affix.includes('GUTS'))                       massGutsMulti *= (1 + num / 100);
+    }
+
+    // Amulets
+    for (const amuletId of ghost.amulet_slots ?? []) {
+      if (!amuletId) continue;
+      if (amuletId === 'a_hp')    hp  += 300;
+      if (amuletId === 'a_atk')   str += 15;
+      if (amuletId === 'a_mag')   mag += 15;
+      if (amuletId === 'a_spd')   spd += 10;
+      if (amuletId === 'a_curse') mag += 25;
+      if (amuletId === 'a_guts')  massGutsMulti *= 1.25;
+    }
+  }
+
+  const boostedStats: GhostStats = { hp, str, mag, def, spr, spd };
+  const gutsMultiplier = skillGutsMulti * massGutsMulti;
+
   return {
     ghost, currentHp: boostedStats.hp, maxHp: boostedStats.hp,
     atb: atbStart, guts: 0, isPlayer, alive: true,

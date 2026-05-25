@@ -17,7 +17,7 @@ const MASS_AFFIXES = [
 
 export default function Forge() {
   const navigate   = useNavigate();
-  const { ghosts, team, updateGhost, player } = useGameStore();
+  const { ghosts, team, updateGhost, player, spendDust } = useGameStore();
   const [tab, setTab]         = useState<ForgeTab>('frame');
   const [selectedId, setSelectedId] = useState(team[0]?.id ?? '');
   const [msg, setMsg]         = useState('');
@@ -35,6 +35,8 @@ export default function Forge() {
   async function enhanceFrame() {
     if (!ghost) return;
     if (dust < frameCost) { setMsg(`❌ ต้องการ ✨ ${frameCost}`); return; }
+    const ok = await spendDust(frameCost);
+    if (!ok) { setMsg('❌ ตัดฝุ่นไม่สำเร็จ'); return; }
     const newFrame = { ...frame, enhancement: frame.enhancement + 1, base_def: frame.base_def + 3, base_spr: frame.base_spr + 3 };
     await updateGhost(ghost.id, { frame: newFrame });
     setMsg(`✅ Frame +${newFrame.enhancement}! DEF/SPR +3`);
@@ -44,6 +46,8 @@ export default function Forge() {
   async function rerollMass() {
     if (!ghost) return;
     if (dust < massCost) { setMsg(`❌ ต้องการ ✨ ${massCost}`); return; }
+    const ok = await spendDust(massCost);
+    if (!ok) { setMsg('❌ ตัดฝุ่นไม่สำเร็จ'); return; }
     setRolling(true);
 
     const count   = 2 + Math.floor(Math.random() * 2);
