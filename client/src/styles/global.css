@@ -449,6 +449,11 @@ h3 { font-size: 16px; }
 @keyframes cardAttack { 0%{transform:scale(1) translateX(0);} 30%{transform:scale(1.08) translateX(6px);} 65%{transform:scale(1.04) translateX(-3px);} 100%{transform:scale(1) translateX(0);} }
 @keyframes cardHit    { 0%,100%{filter:brightness(1) saturate(1);} 25%{filter:brightness(2.8) saturate(0.3);} }
 
+/* ─── SPRITE ANIMATIONS (steps = frame count, native 32px) ── */
+@keyframes spriteAnim4 { from { background-position-x: 0 } to { background-position-x: -128px } }
+@keyframes spriteAnim6 { from { background-position-x: 0 } to { background-position-x: -192px } }
+@keyframes spriteAnim8 { from { background-position-x: 0 } to { background-position-x: -256px } }
+
 .fade-in { animation: fadeIn 0.3s ease; }
 .pop-in  { animation: popIn 0.2s ease; }
 .pulse   { animation: pulse 2s infinite; }

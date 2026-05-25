@@ -3,6 +3,8 @@ import { useGameStore } from '../store/gameStore';
 import { GHOST_REG } from '../data/ghosts';
 import { ZONE_DEFS, getZoneDef, getZoneIndex, buildZoneEnemies } from '../data/zones';
 import Chibi from '../components/Chibi';
+import SpriteChar, { GHOST_SPRITE } from '../components/SpriteChar';
+import type { AnimState } from '../components/SpriteChar';
 import ScreenHeader from '../components/ScreenHeader';
 import type { Ghost, GhostStats } from '../types';
 
@@ -136,6 +138,13 @@ function makeCombatant(ghost: Ghost, isPlayer: boolean): Combatant {
     atb: atbStart, guts: 0, isPlayer, alive: true,
     boostedStats, gutsMultiplier, regenPct,
   };
+}
+
+function getAnimState(com: Combatant, attackAnim: AttackAnim | null): AnimState {
+  if (!com.alive) return 'death';
+  if (attackAnim?.attackerGhostId === com.ghost.id) return 'attack';
+  if (attackAnim?.targetGhostId   === com.ghost.id) return 'hurt';
+  return 'idle';
 }
 
 export default function Battle() {
@@ -502,6 +511,7 @@ export default function Battle() {
               if (!def) return null;
               const isAttacking = attackAnim?.attackerGhostId === com.ghost.id;
               const isHit       = attackAnim?.targetGhostId   === com.ghost.id;
+              const hasSprite   = !!GHOST_SPRITE[com.ghost.ghost_type];
               return (
                 <div key={com.ghost.id} style={{
                   flex: 1, background: !com.alive ? 'rgba(255,255,255,0.03)' : 'var(--bg-card)',
@@ -510,7 +520,10 @@ export default function Battle() {
                   alignItems: 'center', gap: 5, opacity: !com.alive ? 0.35 : 1, transition: 'opacity 0.3s',
                   animation: isAttacking ? 'cardAttack 0.32s ease-out' : isHit ? 'cardHit 0.38s ease-out' : 'none',
                 }}>
-                  <Chibi emoji={def.emoji} element={def.element} size={42} />
+                  {hasSprite
+                    ? <SpriteChar ghostType={com.ghost.ghost_type} animState={getAnimState(com, attackAnim)} size={64} flip />
+                    : <Chibi emoji={def.emoji} element={def.element} size={42} />
+                  }
                   <div style={{ fontSize: 10, fontWeight: 700, textAlign: 'center' }}>{def.nameTh}</div>
                   <div style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'JetBrains Mono, monospace' }}>
                     {com.currentHp}/{com.maxHp}
@@ -557,6 +570,7 @@ export default function Battle() {
               if (!def) return null;
               const isAttacking = attackAnim?.attackerGhostId === com.ghost.id;
               const isHit       = attackAnim?.targetGhostId   === com.ghost.id;
+              const hasSprite   = !!GHOST_SPRITE[com.ghost.ghost_type];
               return (
                 <div key={com.ghost.id} style={{
                   flex: 1,
@@ -566,7 +580,10 @@ export default function Battle() {
                   alignItems: 'center', gap: 5, opacity: !com.alive ? 0.35 : 1, transition: 'opacity 0.3s',
                   animation: isAttacking ? 'cardAttack 0.32s ease-out' : isHit ? 'cardHit 0.38s ease-out' : 'none',
                 }}>
-                  <Chibi emoji={def.emoji} element={def.element} size={42} evoStage={com.ghost.evo_stage} />
+                  {hasSprite
+                    ? <SpriteChar ghostType={com.ghost.ghost_type} animState={getAnimState(com, attackAnim)} size={64} />
+                    : <Chibi emoji={def.emoji} element={def.element} size={42} evoStage={com.ghost.evo_stage} />
+                  }
                   <div style={{ fontSize: 10, fontWeight: 700, textAlign: 'center' }}>{com.ghost.nickname || def.nameTh}</div>
                   <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'JetBrains Mono, monospace' }}>
                     {com.currentHp}/{com.maxHp}
