@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useGameStore } from '../store/gameStore';
-import { GHOST_REG } from '../data/ghosts';
+import { GHOST_REG, ELEMENT_CHART } from '../data/ghosts';
 import { ZONE_DEFS, getZoneDef, getZoneIndex, buildZoneEnemies } from '../data/zones';
 import Chibi from '../components/Chibi';
 import SpriteChar, { GHOST_SPRITE } from '../components/SpriteChar';
@@ -27,6 +27,19 @@ const ELEMENT_EMOJI: Record<string, string> = {
   metal: '⚡', dark: '💜', light: '✨',
 };
 
+interface StatusEffects {
+  stunTurns:    number;
+  defDebuffPct: number;
+  atkDebuffPct: number;
+  shieldPct:    number;
+  dotDmg:       number;
+  dotTurns:     number;
+}
+
+const EMPTY_STATUS: StatusEffects = {
+  stunTurns: 0, defDebuffPct: 0, atkDebuffPct: 0, shieldPct: 0, dotDmg: 0, dotTurns: 0,
+};
+
 interface Combatant {
   ghost: Ghost;
   currentHp: number;
@@ -38,9 +51,45 @@ interface Combatant {
   boostedStats: GhostStats;
   gutsMultiplier: number;
   regenPct: number;
+  cooldowns: Record<string, number>;
+  statusEffects: StatusEffects;
+  critRate: number;
 }
 
 interface LogEntry { text: string; type: 'hit' | 'skill' | 'heal' | 'info' }
+
+const BASIC_FLAVOR: Record<string, string[]> = {
+  pob:         ['ปอบอ้าปากกว้าง โจมตี', 'กลิ่นตับดิบโชยไปที่', 'ปอบกระโจนใส่'],
+  phiDib:      ['ผีดิบฟัดโครมใส่', 'ซอมบี้หิวแล้ว โถมใส่', 'ผีดิบแหกปาก กัด'],
+  krasue:      ['หัวลอยเข้าหา', 'กระสือดูด HP จาก', 'ไส้ห้อยแกว่งใส่'],
+  kumantong:   ['กุมารตบหน้า', 'เด็กน้อยกรีดร้อง ตี', 'กุมารโกรธแล้วนะ!! ตี'],
+  nangTani:    ['เถาวัลย์รัดแน่น ใส่', 'นางตานีเหวี่ยงกิ่งไม้ใส่', 'ต้นกล้วยพุ่งไปที่'],
+  pret:        ['เล็บเปรตข่วน', 'เปรตหิวโหย จิก', 'ตัวสูงเอี้ยวตีหัว'],
+  maeNak:      ['แม่นาคซัดน้ำใส่', 'แขนยาวผิดปกติ ตบ', 'แม่นาคยิ้มน่ากลัว โจมตี'],
+  kalakinee:   ['ฟ้าผ่าลงใส่', 'กาลกิณีส่งความซวยไปที่', 'โดนแล้วซวยเลย!'],
+  pisaj:       ['ปีศาจพ่นไฟใส่', 'เผา! เผา! เผา! โจมตี', 'ปีศาจโจมตีด้วยความสนุก'],
+  phiTaiHong:  ['ผีตายโหงคลั้มคลั่ง ตี', 'ความแค้นล้นใจ ระเบิดใส่', 'โกรธมาก! ตบ'],
+  asurakay:    ['อสุรกายก้าวย่าง ทับ', 'ยักษ์บดขยี้', 'แผ่นดินสั่น โจมตี'],
+  motherSpirit:['แม่เจ้าของกรีดร้อง ใส่', 'พลังศักดิ์สิทธิ์ โจมตี', 'แม่ผีลอยมาใกล้ ตี'],
+};
+
+const SKILL_FLAVOR: Record<string, string> = {
+  pob_curse:      '🔥 ไฟปอบ!! ลุกโชนใส่',
+  phidib_taunt:   '📣 ท้าทาย! ผีดิบตะโกน "มาตีฉันสิ!!" รับ Shield',
+  krasue_curse:   '💀 คำสาปกระสือ! ดูดพลังป้องกันทั้งทีมศัตรู!',
+  kmt_heal:       '💚 พรทิพย์! กุมารอวยพรเพื่อนร่วมทีม',
+  tani_sleep:     '😴 ต้นกล้วยสะกด! ทีมศัตรูง่วงนอนหมดเลย~',
+  pret_feast:     '🍖 กินวิญญาณ!! เปรตกินอาหารมื้อพิเศษ',
+  nak_shield:     '💙 รักนิรันดร์! แม่นาคกางปีกปกป้องทีม +40% Shield',
+  kala_hex:       '⚡ คำสาปกาล! ทุกคนจะซวยตั้งแต่นี้... ตัด GUTS!',
+  pisaj_inferno:  '🌋 นรกลุกโชน!! ไฟนรกลุกท่วม',
+  pth_rampage:    '💢 โหมกระหน่ำ!! ผีตายโหงคลุ้มคลั่ง 3 ครั้ง!',
+  asura_titan:    '🗿 ไททันกร้าว!! อสุรยักษ์กระจายพลังทั้งสนาม!',
+  ms_revive:      '✨ ฟื้นคืนชีพ!! แม่เจ้าของดึงวิญญาณกลับมา',
+};
+
+const CRIT_SUFFIX = ['💥 CRITICAL!!!', '🔥 โหดมาก!', '💀 กระดูกร้าว!', '⚡ ซวยจัง~', '😱 โอ้โห!!'];
+const KILL_MSG    = ['ลาก่อนนะ~', 'เอ็งหมดแล้ว!', 'อย่าโกรธกันนะ~', 'เจ็บไหม? เจ็บไหม?'];
 
 const SKILL_STAT_BONUSES: Record<string, Partial<GhostStats>> = {
   atk1: { str: 5  },
@@ -131,11 +180,13 @@ function makeCombatant(ghost: Ghost, isPlayer: boolean, fieldAmuletId?: string |
 
   const boostedStats: GhostStats = { hp, str, mag, def, spr, spd };
   const gutsMultiplier = skillGutsMulti * massGutsMulti;
+  const hasCrit = isPlayer && (ghost.skill_tree?.nodes_taken ?? []).includes('crit');
 
   return {
     ghost, currentHp: boostedStats.hp, maxHp: boostedStats.hp,
     atb: atbStart, guts: 0, isPlayer, alive: true,
     boostedStats, gutsMultiplier, regenPct,
+    cooldowns: {}, statusEffects: { ...EMPTY_STATUS }, critRate: hasCrit ? 0.2 : 0.1,
   };
 }
 
@@ -228,58 +279,204 @@ export default function Battle() {
 
     tickRef.current = window.setInterval(() => {
       setCombatants(prev => {
-        const next = prev.map(c => {
+        const rnd = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
+
+        // ── Step 1: Passive ticks ─────────────────────────────────
+        const ticked = prev.map(c => {
           if (!c.alive) return c;
-          const spd = c.boostedStats.spd;
+          const spd     = c.boostedStats.spd;
           const regenHp = c.regenPct > 0 ? Math.floor(c.maxHp * c.regenPct) : 0;
+          const dot     = c.statusEffects.dotTurns > 0 ? c.statusEffects.dotDmg : 0;
+          const newHp   = Math.max(0, Math.min(c.maxHp, c.currentHp + regenHp - dot));
           return {
             ...c,
-            atb:       Math.min(100, c.atb + spd / 10),
-            guts:      Math.min(100, c.guts + spd * 0.067 * c.gutsMultiplier),
-            currentHp: regenHp > 0 ? Math.min(c.maxHp, c.currentHp + regenHp) : c.currentHp,
+            atb:  Math.min(100, c.atb + spd / 10),
+            guts: Math.min(100, c.guts + spd * 0.067 * c.gutsMultiplier),
+            currentHp: newHp,
+            alive: newHp > 0,
+            statusEffects: dot > 0
+              ? { ...c.statusEffects, dotTurns: c.statusEffects.dotTurns - 1 }
+              : c.statusEffects,
           };
         });
 
-        const actor = next.find(c => c.alive && c.atb >= 100);
-        if (!actor) return next;
+        // ── Step 2: Find actor ────────────────────────────────────
+        const actor = ticked.find(c => c.alive && c.atb >= 100);
+        if (!actor) return ticked;
 
-        const enemies = next.filter(c => c.alive && c.isPlayer !== actor.isPlayer);
-        if (enemies.length === 0) return next;
+        // Handle stun: skip turn, decrement counter
+        if (actor.statusEffects.stunTurns > 0) {
+          const n = GHOST_REG[actor.ghost.ghost_type]?.nameTh ?? '';
+          setLog(l => [...l.slice(-30), { text: `😴 ${n} ยังงัวเงียอยู่... ข้ามเทิร์น`, type: 'info' }]);
+          return ticked.map(c => c.ghost.id === actor.ghost.id
+            ? { ...c, atb: 0, statusEffects: { ...c.statusEffects, stunTurns: c.statusEffects.stunTurns - 1 } }
+            : c
+          );
+        }
 
-        const target = enemies[Math.floor(Math.random() * enemies.length)];
-        const dmg    = Math.max(1, Math.floor(
-          actor.boostedStats.str * 1.5
-          + Math.random() * 20
-          - target.boostedStats.def * 0.3
-        ));
+        // ── Step 3: Choose skill ──────────────────────────────────
+        const ghostDef  = GHOST_REG[actor.ghost.ghost_type];
+        const actorEl   = ghostDef?.element ?? 'dark';
+        const actorName = ghostDef?.nameTh ?? '';
+        const skills    = ghostDef?.skills ?? [];
+        const special   = skills[1];
+        const basic     = skills[0];
+        const useSpecial = !!special
+          && actor.guts >= special.gutsCost
+          && (actor.cooldowns[special.id] ?? 0) <= 0;
+        const skill = (useSpecial ? special : basic) ?? basic;
+        if (!skill) return ticked.map(c => c.ghost.id === actor.ghost.id ? { ...c, atb: 0 } : c);
 
-        setLog(l => [...l.slice(-30), {
-          text: `${GHOST_REG[actor.ghost.ghost_type]?.nameTh} โจมตี ${GHOST_REG[target.ghost.ghost_type]?.nameTh} (-${dmg})`,
-          type: 'hit',
-        }]);
+        // Decrement cooldowns, set new cooldown if using special
+        const newCooldowns: Record<string, number> = {};
+        for (const [k, v] of Object.entries(actor.cooldowns)) { if (v > 0) newCooldowns[k] = v - 1; }
+        if (useSpecial) newCooldowns[skill.id] = skill.cooldown;
 
-        // Fire attack animation
-        const attackerSide = next.filter(c => c.isPlayer === actor.isPlayer);
-        const fromIdx = attackerSide.findIndex(c => c.ghost.id === actor.ghost.id);
+        const aliveEnemies = ticked.filter(c => c.alive && c.isPlayer !== actor.isPlayer);
+        const aliveAllies  = ticked.filter(c => c.alive && c.isPlayer === actor.isPlayer);
+        if (aliveEnemies.length === 0) return ticked;
+
+        // ── Damage helper ─────────────────────────────────────────
+        const act = actor;
+        function calcDmg(t: Combatant, pwr: number, useStr: boolean) {
+          const targetEl = GHOST_REG[t.ghost.ghost_type]?.element ?? 'dark';
+          const elem     = (ELEMENT_CHART as Record<string, Record<string, number>>)[actorEl]?.[targetEl] ?? 1.0;
+          const rawAtk   = (useStr ? act.boostedStats.str : act.boostedStats.mag) * (1 - act.statusEffects.atkDebuffPct);
+          const rawDef   = (useStr ? t.boostedStats.def   : t.boostedStats.spr)   * (1 - t.statusEffects.defDebuffPct);
+          const raw      = Math.max(1, rawAtk * (pwr / 100) * elem - rawDef * 0.3 + Math.random() * 15);
+          const isCrit   = Math.random() < act.critRate;
+          return { dmg: Math.floor(Math.max(1, raw * (isCrit ? 1.8 : 1) * (1 - t.statusEffects.shieldPct))), isCrit };
+        }
+
+        // ── Accumulators ──────────────────────────────────────────
+        const hpDelta:  Record<string, number>                = {};
+        const statChgs: Record<string, Partial<StatusEffects>> = {};
+        const gutsSet:  Record<string, number>                = {};
+        const logQ:     LogEntry[]                            = [];
+        let   animTgt   = aliveEnemies[0];
+
+        // ── Route by skill type ───────────────────────────────────
+        if (skill.type === 'physical' || skill.type === 'magical') {
+          const useStr = skill.type === 'physical';
+
+          if (skill.id === 'pth_rampage') {
+            const hits: string[] = [];
+            for (let i = 0; i < 3; i++) {
+              const t = rnd(aliveEnemies);
+              const { dmg, isCrit } = calcDmg(t, Math.floor(skill.power / 3), useStr);
+              hpDelta[t.ghost.id] = (hpDelta[t.ghost.id] ?? 0) - dmg;
+              hits.push(`-${dmg}${isCrit ? '💥' : ''}`);
+            }
+            logQ.push({ text: `${SKILL_FLAVOR['pth_rampage']} [${hits.join(' ')}]`, type: 'skill' });
+
+          } else if (skill.id === 'asura_titan') {
+            const hits: string[] = [];
+            for (const t of aliveEnemies) {
+              const { dmg, isCrit } = calcDmg(t, skill.power, useStr);
+              hpDelta[t.ghost.id] = (hpDelta[t.ghost.id] ?? 0) - dmg;
+              hits.push(`${GHOST_REG[t.ghost.ghost_type]?.nameTh ?? ''} -${dmg}${isCrit ? '💥' : ''}`);
+            }
+            logQ.push({ text: `${SKILL_FLAVOR['asura_titan']} ${hits.join(' / ')}`, type: 'skill' });
+
+          } else {
+            const target = rnd(aliveEnemies);
+            const { dmg, isCrit } = calcDmg(target, skill.power, useStr);
+            hpDelta[target.ghost.id] = -dmg;
+            animTgt = target;
+            const tName   = GHOST_REG[target.ghost.ghost_type]?.nameTh ?? '';
+            const critStr = isCrit ? ' ' + rnd(CRIT_SUFFIX) : '';
+
+            if (skill.id === 'pret_feast') {
+              const drain = Math.floor(dmg * 0.3);
+              hpDelta[actor.ghost.id] = drain;
+              logQ.push({ text: `${SKILL_FLAVOR['pret_feast']} → ${tName} -${dmg}${critStr} | ดูด HP +${drain}`, type: 'skill' });
+            } else if (skill.id === 'pisaj_inferno') {
+              statChgs[target.ghost.id] = { dotDmg: Math.floor(dmg * 0.3), dotTurns: 3 };
+              logQ.push({ text: `${SKILL_FLAVOR['pisaj_inferno']} → ${tName} -${dmg}${critStr} 🔥DoT×3`, type: 'skill' });
+            } else if (useSpecial) {
+              logQ.push({ text: `${SKILL_FLAVOR[skill.id] ?? `⚡ ${actorName} ใช้ ${skill.name}!`} → ${tName} -${dmg}${critStr}`, type: 'skill' });
+            } else {
+              const flavor = rnd(BASIC_FLAVOR[actor.ghost.ghost_type] ?? [`${actorName} โจมตี`]);
+              logQ.push({ text: `${flavor} ${tName} (-${dmg})${critStr}`, type: 'hit' });
+            }
+          }
+
+        } else if (skill.type === 'heal') {
+          if (skill.id === 'ms_revive') {
+            const lowest = [...aliveAllies, actor].sort((a, b) => (a.currentHp / a.maxHp) - (b.currentHp / b.maxHp))[0];
+            if (lowest) {
+              hpDelta[lowest.ghost.id] = lowest.maxHp - lowest.currentHp;
+              logQ.push({ text: `${SKILL_FLAVOR['ms_revive']} ${GHOST_REG[lowest.ghost.ghost_type]?.nameTh ?? ''} กลับมาเต็ม HP!`, type: 'heal' });
+              animTgt = lowest;
+            }
+          } else {
+            const healAmt = Math.floor(actor.boostedStats.mag * (skill.power / 100));
+            for (const a of [...aliveAllies, actor]) hpDelta[a.ghost.id] = healAmt;
+            logQ.push({ text: `${SKILL_FLAVOR['kmt_heal']} ฮีล +${healAmt} ทุกคน`, type: 'heal' });
+            if (aliveAllies.length > 0) animTgt = aliveAllies[0];
+          }
+
+        } else if (skill.type === 'buff') {
+          if (skill.id === 'nak_shield') {
+            for (const a of [...aliveAllies, actor]) statChgs[a.ghost.id] = { shieldPct: 0.4 };
+            logQ.push({ text: SKILL_FLAVOR['nak_shield'], type: 'skill' });
+            if (aliveAllies.length > 0) animTgt = aliveAllies[0];
+          } else if (skill.id === 'phidib_taunt') {
+            statChgs[actor.ghost.id] = { shieldPct: 0.5 };
+            logQ.push({ text: SKILL_FLAVOR['phidib_taunt'], type: 'skill' });
+            animTgt = actor;
+          }
+
+        } else if (skill.type === 'debuff') {
+          if (skill.id === 'krasue_curse') {
+            for (const t of aliveEnemies) statChgs[t.ghost.id] = { defDebuffPct: 0.25 };
+            logQ.push({ text: SKILL_FLAVOR['krasue_curse'], type: 'skill' });
+          } else if (skill.id === 'tani_sleep') {
+            for (const t of aliveEnemies) statChgs[t.ghost.id] = { stunTurns: 2 };
+            logQ.push({ text: SKILL_FLAVOR['tani_sleep'], type: 'skill' });
+          } else if (skill.id === 'kala_hex') {
+            for (const t of aliveEnemies) { statChgs[t.ghost.id] = { atkDebuffPct: 0.25 }; gutsSet[t.ghost.id] = 0; }
+            logQ.push({ text: SKILL_FLAVOR['kala_hex'], type: 'skill' });
+          }
+        }
+
+        // ── Fire anim ────────────────────────────────────────────
+        const attackerSide = ticked.filter(c => c.isPlayer === actor.isPlayer);
+        const fromIdx      = attackerSide.findIndex(c => c.ghost.id === actor.ghost.id);
         setAttackAnim({
           key: Date.now(),
           attackerGhostId: actor.ghost.id,
-          targetGhostId:   target.ghost.id,
+          targetGhostId:   animTgt.ghost.id,
           fromPlayer:      actor.isPlayer,
-          fromIdx:         fromIdx < 0 ? 0 : fromIdx,
+          fromIdx:         Math.max(0, fromIdx),
           fromCount:       attackerSide.length,
-          element:         GHOST_REG[actor.ghost.ghost_type]?.element ?? 'dark',
+          element:         actorEl,
         });
+        for (const entry of logQ) setLog(l => [...l.slice(-30), entry]);
 
-        const result = next.map(c => {
-          if (c.ghost.id === actor.ghost.id) return { ...c, atb: 0 };
-          if (c.ghost.id === target.ghost.id) {
-            const newHp = Math.max(0, c.currentHp - dmg);
-            return { ...c, currentHp: newHp, alive: newHp > 0 };
+        // ── Apply changes ────────────────────────────────────────
+        const result = ticked.map(c => {
+          if (!c.alive) return c;
+          const dHp   = hpDelta[c.ghost.id] ?? 0;
+          const newHp = Math.max(0, Math.min(c.maxHp, c.currentHp + dHp));
+          const alive = newHp > 0;
+          const sPatch = statChgs[c.ghost.id];
+          const newSt  = sPatch ? { ...c.statusEffects, ...sPatch } : c.statusEffects;
+          const newGuts = c.ghost.id in gutsSet ? gutsSet[c.ghost.id] : c.guts;
+
+          if (c.alive && !alive) {
+            const n = GHOST_REG[c.ghost.ghost_type]?.nameTh ?? '';
+            setLog(l => [...l.slice(-30), { text: `💀 ${n} สิ้นชีพ... ${rnd(KILL_MSG)}`, type: 'info' }]);
           }
-          return c;
+
+          if (c.ghost.id === actor.ghost.id) {
+            return { ...c, atb: 0, guts: useSpecial ? Math.max(0, c.guts - skill.gutsCost) : c.guts,
+              cooldowns: newCooldowns, currentHp: newHp, alive, statusEffects: newSt };
+          }
+          return { ...c, currentHp: newHp, alive, guts: newGuts, statusEffects: newSt };
         });
 
+        // ── Win check ────────────────────────────────────────────
         const pAlive = result.filter(c =>  c.isPlayer && c.alive).length;
         const eAlive = result.filter(c => !c.isPlayer && c.alive).length;
         if (pAlive === 0 || eAlive === 0) {
@@ -289,7 +486,6 @@ export default function Battle() {
           setWinner(w);
           setLog(l => [...l, { text: w === 'player' ? '🏆 ชนะการต่อสู้!' : '💀 พ่ายแพ้...', type: 'info' }]);
         }
-
         return result;
       });
     }, 100);
