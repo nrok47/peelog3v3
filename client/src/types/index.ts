@@ -75,7 +75,6 @@ export interface Ghost {
   frame: Frame;
   spirit_mass: SpiritMass;
   skill_tree: SkillTree;
-  amulet_slots: (string | null)[];
   is_in_team: boolean;
   team_slot: number | null;
 }
@@ -87,7 +86,10 @@ export interface Player {
   title: string;
   spirit_dust: number;
   focus_pts: number;
-  inventory: { id: string; type: string; qty: number }[];
+  inventory: {
+    field_amulets?: (string | null)[];
+    items?: { id: string; type: string; qty: number }[];
+  };
 }
 
 export interface MentorBonds {

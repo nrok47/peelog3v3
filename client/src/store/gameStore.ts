@@ -18,6 +18,7 @@ interface GameStore extends GameState {
   addBattleRewards: (playerGhostIds: string[], avgEnemyLevel: number) => Promise<{ expGained: number; levelUps: string[]; dustGained: number }>;
   applyAdventureChoice: (eventId: string, choiceId: string, corruptionDelta: number, dustReward: number, bondGain: number) => Promise<void>;
   advanceZoneStep: () => Promise<{ zoneCleared: boolean; newZoneId: string | null }>;
+  setFieldAmulet: (pos: number, amuletId: string | null) => Promise<void>;
   passiveDustEarned: number;
   passiveRate: number;        // dust/hour current rate (bond-based)
 }
@@ -262,6 +263,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
     await SaveService.checkpoint(save.id, { steps_taken: newSteps });
     set(state => ({ save: state.save ? { ...state.save, steps_taken: newSteps } : null }));
     return { zoneCleared: false, newZoneId: null };
+  },
+
+  async setFieldAmulet(pos, amuletId) {
+    const { player } = get();
+    if (!player) return;
+    const prev = player.inventory?.field_amulets ?? [null, null, null];
+    const next: (string | null)[] = [...prev];
+    while (next.length < 3) next.push(null);
+    next[pos] = amuletId;
+    const newInventory = { ...player.inventory, field_amulets: next };
+    await db.from('players').update({ inventory: newInventory }).eq('id', player.id);
+    set(state => ({
+      player: state.player ? { ...state.player, inventory: newInventory } : null,
+    }));
   },
 
   async summonGhost(ghostType, cost) {

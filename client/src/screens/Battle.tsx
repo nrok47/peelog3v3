@@ -73,7 +73,7 @@ function getSkillBonuses(ghost: Ghost) {
   };
 }
 
-function makeCombatant(ghost: Ghost, isPlayer: boolean): Combatant {
+function makeCombatant(ghost: Ghost, isPlayer: boolean, fieldAmuletId?: string | null): Combatant {
   const ghostDef  = GHOST_REG[ghost.ghost_type];
   const fallback  = ghostDef?.baseStats ?? { hp: 1000, str: 30, mag: 20, def: 20, spr: 20, spd: 20 };
   const saved     = ghost.stats ?? {};
@@ -118,15 +118,14 @@ function makeCombatant(ghost: Ghost, isPlayer: boolean): Combatant {
       else if (affix.includes('GUTS'))                       massGutsMulti *= (1 + num / 100);
     }
 
-    // Amulets
-    for (const amuletId of ghost.amulet_slots ?? []) {
-      if (!amuletId) continue;
-      if (amuletId === 'a_hp')    hp  += 300;
-      if (amuletId === 'a_atk')   str += 15;
-      if (amuletId === 'a_mag')   mag += 15;
-      if (amuletId === 'a_spd')   spd += 10;
-      if (amuletId === 'a_curse') mag += 25;
-      if (amuletId === 'a_guts')  massGutsMulti *= 1.25;
+    // Field amulet (1 slot per field position)
+    if (fieldAmuletId) {
+      if (fieldAmuletId === 'a_hp')    hp  += 300;
+      if (fieldAmuletId === 'a_atk')   str += 15;
+      if (fieldAmuletId === 'a_mag')   mag += 15;
+      if (fieldAmuletId === 'a_spd')   spd += 10;
+      if (fieldAmuletId === 'a_curse') mag += 25;
+      if (fieldAmuletId === 'a_guts')  massGutsMulti *= 1.25;
     }
   }
 
@@ -148,7 +147,7 @@ function getAnimState(com: Combatant, attackAnim: AttackAnim | null): AnimState 
 }
 
 export default function Battle() {
-  const { ghosts, save, addBattleRewards, advanceZoneStep } = useGameStore();
+  const { ghosts, player, save, addBattleRewards, advanceZoneStep } = useGameStore();
   const [phase, setPhase]             = useState<'select' | 'battle' | 'end'>('select');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [winner, setWinner]           = useState<'player' | 'ai' | null>(null);
@@ -192,8 +191,9 @@ export default function Battle() {
     const enemies = buildZoneEnemies(zone, stepsDone, playerTeam.length);
     setEnemyGhosts(enemies);
 
+    const fieldAmulets = player?.inventory?.field_amulets ?? [null, null, null];
     const initial: Combatant[] = [
-      ...playerTeam.slice(0, 3).map(g => makeCombatant(g, true)),
+      ...playerTeam.slice(0, 3).map((g, idx) => makeCombatant(g, true, fieldAmulets[idx])),
       ...enemies.map(g => makeCombatant(g, false)),
     ];
     setCombatants(initial);
