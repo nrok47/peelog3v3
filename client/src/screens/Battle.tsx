@@ -238,6 +238,7 @@ export default function Battle() {
   const [arenaScore, setArenaScore]         = useState(0);
   const [opponent, setOpponent]             = useState<{ username: string; team: Ghost[] } | null>(null);
   const [exorcistGauge, setExorcistGauge]   = useState(0);
+  const [fleeing, setFleeing]               = useState(false);
   const [attackAnim, setAttackAnim]         = useState<AttackAnim | null>(null);
   const tickRef         = useRef<number | null>(null);
   const logRef          = useRef<HTMLDivElement>(null);
@@ -1007,12 +1008,65 @@ export default function Battle() {
                   </div>
                 )}
               </div>
-              <div style={{
-                textAlign: 'center', color: 'var(--text-muted)', fontSize: 13,
-                padding: '10px', background: 'var(--bg-card)', borderRadius: 'var(--r-lg)',
-              }}>
-                <span className="pulse">⏳ กำลังต่อสู้ (Auto ATB)...</span>
-              </div>
+              {/* Status bar + flee button */}
+              {!fleeing ? (
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  background: 'var(--bg-card)', borderRadius: 'var(--r-lg)',
+                  padding: '8px 12px',
+                }}>
+                  <span className="pulse" style={{ flex: 1, color: 'var(--text-muted)', fontSize: 13 }}>
+                    ⏳ กำลังต่อสู้ (Auto ATB)...
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setFleeing(true)}
+                    style={{
+                      background: 'rgba(255,71,87,0.12)', border: '1px solid rgba(255,71,87,0.35)',
+                      borderRadius: 6, color: 'var(--red)', fontSize: 11, fontWeight: 700,
+                      padding: '5px 10px', cursor: 'pointer',
+                    }}
+                  >
+                    🏳️ ถอยทัพ
+                  </button>
+                </div>
+              ) : (
+                <div style={{
+                  background: 'rgba(255,71,87,0.12)', border: '1px solid rgba(255,71,87,0.4)',
+                  borderRadius: 'var(--r-lg)', padding: '12px 14px', textAlign: 'center',
+                }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--red)', marginBottom: 10 }}>
+                    🏳️ ยืนยันถอยทัพ? (ไม่ได้รับรางวัล)
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      style={{ flex: 1, fontSize: 12 }}
+                      onClick={() => setFleeing(false)}
+                    >
+                      สู้ต่อ
+                    </button>
+                    <button
+                      type="button"
+                      style={{
+                        flex: 2, fontSize: 12, fontWeight: 700, padding: '8px',
+                        background: 'rgba(255,71,87,0.25)', border: '1px solid rgba(255,71,87,0.6)',
+                        borderRadius: 8, color: 'var(--red)', cursor: 'pointer',
+                      }}
+                      onClick={() => {
+                        if (tickRef.current) clearInterval(tickRef.current);
+                        setFleeing(false);
+                        setWinner('ai');
+                        setPhase('end');
+                        setLog(l => [...l, { text: '🏳️ ถอยทัพแล้ว...', type: 'info' }]);
+                      }}
+                    >
+                      🏳️ ยืนยันถอยทัพ
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
