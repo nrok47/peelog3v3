@@ -27,8 +27,9 @@ interface Session {
 interface BoonDef { id: string; name: string; icon: string; desc: string }
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
-const TICK_MS   = 1700;
-const MAX_STEPS = 15;
+const BASE_TICK_MS = 1700;
+const RUN_STEPS = { short: 8, normal: 15, long: 25 } as const;
+type RunLength = keyof typeof RUN_STEPS;
 
 const ALL_BOONS: BoonDef[] = [
   { id: 'fire_power',    name: 'ไฟแห่งปอบ',      icon: '🔥', desc: 'ดาเมจธาตุไฟ +20% ในด่านนี้' },
@@ -83,11 +84,13 @@ function rollStep(s: Session, zoneId: string, teamAvgLv: number): {
       let dust2  = Math.floor(enemyLv * 2 * (critDbl ? 2 : 1));
       const exp2 = Math.floor(enemyLv * 13 * expMul);
       const corrBonus = s.activeBoons.includes('poison_debuff') ? -2 : 0;
-      lines.push({ text: `  ✅ ชนะ! EXP +${exp2}  ฝุ่น +${dust2}  HP -${hp2}%`, color: '#34d399' });
+      const bondBonus = s.activeBoons.includes('bond_warmth') ? 6 : 1;
+      lines.push({ text: `  ✅ ชนะ! EXP +${exp2}  ฝุ่น +${dust2}  💞+${bondBonus}  HP -${hp2}%`, color: '#34d399' });
       delta = {
-        dustEarned: s.dustEarned + dust2,
-        expEarned:  s.expEarned  + exp2,
-        hpPct:  Math.max(0, s.hpPct - hp2),
+        dustEarned:  s.dustEarned + dust2,
+        expEarned:   s.expEarned  + exp2,
+        bondEarned:  s.bondEarned + bondBonus,
+        hpPct:       Math.max(0, s.hpPct - hp2),
         corruptionGain: s.corruptionGain + corrBonus,
       };
     } else {
@@ -144,6 +147,9 @@ export default function Adventure() {
   const [session,     setSession]     = useState<Session | null>(null);
   const [boonOptions, setBoonOptions] = useState<BoonDef[]>([]);
   const [saving,      setSaving]      = useState(false);
+  const [advSpeed,    setAdvSpeed]    = useState<1|2|3>(1);
+  const [paused,      setPaused]      = useState(false);
+  const [runLength,   setRunLength]   = useState<RunLength>('normal');
 
   const tickRef    = useRef<number | null>(null);
   const sessionRef = useRef<Session | null>(null);
@@ -156,6 +162,26 @@ export default function Adventure() {
   useEffect(() => {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
   }, [session?.log.length]);
+
+  // Restart interval when speed changes mid-walk
+  useEffect(() => {
+    if (!session || session.phase !== 'walking' || paused) return;
+    if (tickRef.current) clearInterval(tickRef.current);
+    tickRef.current = window.setInterval(doTick, Math.floor(BASE_TICK_MS / advSpeed));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [advSpeed]);
+
+  // Handle pause/resume
+  useEffect(() => {
+    if (!session || session.phase !== 'walking') return;
+    if (paused) {
+      if (tickRef.current) clearInterval(tickRef.current);
+    } else {
+      if (tickRef.current) clearInterval(tickRef.current);
+      tickRef.current = window.setInterval(doTick, Math.floor(BASE_TICK_MS / advSpeed));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paused]);
 
   // Cleanup on unmount
   useEffect(() => () => { if (tickRef.current) clearInterval(tickRef.current); }, []);
@@ -199,14 +225,16 @@ export default function Adventure() {
 
   function startAdventure() {
     if (tickRef.current) clearInterval(tickRef.current);
+    setPaused(false);
+    const steps = RUN_STEPS[runLength];
     const init: Session = {
-      phase: 'walking', step: 0, maxSteps: MAX_STEPS,
+      phase: 'walking', step: 0, maxSteps: steps,
       hpPct: 100, dustEarned: 0, expEarned: 0, bondEarned: 0, corruptionGain: 0,
       activeBoons: [],
-      log: [{ text: `🗺️  ออกเดินทางสู่ ${zone.name}... (${MAX_STEPS} ก้าว)`, color: '#7dd3fc' }],
+      log: [{ text: `🗺️  ออกเดินทางสู่ ${zone.name}... (${steps} ก้าว)`, color: '#7dd3fc' }],
     };
     setSession(init);
-    tickRef.current = window.setInterval(doTick, TICK_MS);
+    tickRef.current = window.setInterval(doTick, Math.floor(BASE_TICK_MS / advSpeed));
   }
 
   function chooseBoon(boon: BoonDef) {
@@ -225,7 +253,7 @@ export default function Adventure() {
       return next;
     });
     setBoonOptions([]);
-    tickRef.current = window.setInterval(doTick, TICK_MS);
+    tickRef.current = window.setInterval(doTick, Math.floor(BASE_TICK_MS / advSpeed));
   }
 
   function fightBoss() {
@@ -371,7 +399,7 @@ export default function Adventure() {
               </div>
             </div>
             <div style={{ display: 'flex', gap: 12, fontSize: 12, color: 'var(--text-muted)', marginBottom: 14 }}>
-              <span>🚶 {MAX_STEPS} ก้าว</span>
+              <span>🚶 {RUN_STEPS[runLength]} ก้าว</span>
               <span>⚔️ ศัตรู Lv.{zone.levelRange[0]}-{zone.levelRange[1]}</span>
               <span>👑 บอส Lv.{zone.bossLevel}</span>
             </div>
@@ -390,6 +418,61 @@ export default function Adventure() {
                 }}>
                   {e.label} {e.pct}
                 </span>
+              ))}
+            </div>
+
+            {/* Difficulty indicator */}
+            {team.length > 0 && (() => {
+              const diff = teamAvgLv - zone.bossLevel;
+              const label = diff >= 5 ? { text: 'ง่าย', color: '#34d399' }
+                : diff >= -2 ? { text: 'ท้าทาย', color: '#fbbf24' }
+                : { text: 'ยากมาก', color: '#fb7185' };
+              return (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+                  <span style={{ color: 'var(--text-muted)' }}>ระดับความยาก:</span>
+                  <span style={{ color: label.color, fontWeight: 700 }}>{label.text}</span>
+                  <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>
+                    (ทีม Lv.{teamAvgLv} vs บอส Lv.{zone.bossLevel})
+                  </span>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Run length selector */}
+          <div className="card">
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>ระยะการผจญภัย</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {([
+                { key: 'short',  label: 'สั้น',  steps: 8,  note: 'เร็ว ความเสี่ยงน้อย' },
+                { key: 'normal', label: 'ปกติ',  steps: 15, note: 'สมดุล' },
+                { key: 'long',   label: 'ยาว',   steps: 25, note: 'รางวัลมาก ความเสี่ยงสูง' },
+              ] as const).map(opt => (
+                <button
+                  key={opt.key}
+                  type="button"
+                  onClick={() => setRunLength(opt.key)}
+                  style={{
+                    flex: 1,
+                    padding: '10px 6px',
+                    borderRadius: 'var(--r-md)',
+                    border: runLength === opt.key
+                      ? '1.5px solid rgba(165,94,234,0.7)'
+                      : '1px solid rgba(255,255,255,0.08)',
+                    background: runLength === opt.key
+                      ? 'rgba(165,94,234,0.15)'
+                      : 'rgba(255,255,255,0.03)',
+                    cursor: 'pointer',
+                    textAlign: 'center',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  <div style={{ fontSize: 13, fontWeight: 700, color: runLength === opt.key ? '#c4b5fd' : 'var(--text-main)' }}>
+                    {opt.label}
+                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>{opt.steps} ก้าว</div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>{opt.note}</div>
+                </button>
               ))}
             </div>
           </div>
@@ -640,6 +723,42 @@ export default function Adventure() {
             })}
           </div>
         )}
+
+        {/* Speed + Pause controls */}
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          {([1, 2, 3] as const).map(s => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => setAdvSpeed(s)}
+              style={{
+                padding: '5px 10px',
+                borderRadius: 'var(--r-md)',
+                border: advSpeed === s ? '1.5px solid var(--gold)' : '1px solid rgba(255,255,255,0.1)',
+                background: advSpeed === s ? 'rgba(245,197,24,0.15)' : 'rgba(255,255,255,0.04)',
+                color: advSpeed === s ? 'var(--gold)' : 'var(--text-muted)',
+                fontWeight: 700, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
+              }}
+            >
+              x{s}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => setPaused(p => !p)}
+            style={{
+              marginLeft: 'auto',
+              padding: '5px 14px',
+              borderRadius: 'var(--r-md)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              background: paused ? 'rgba(245,197,24,0.12)' : 'rgba(255,255,255,0.04)',
+              color: paused ? 'var(--gold)' : 'var(--text-muted)',
+              fontWeight: 700, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
+            }}
+          >
+            {paused ? '▶️ ดำเนินต่อ' : '⏸ หยุด'}
+          </button>
+        </div>
 
         {/* Terminal log */}
         <LogBox />
