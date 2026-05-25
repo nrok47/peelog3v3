@@ -37,7 +37,7 @@ export const GHOST_REG: Record<string, GhostDef> = {
     baseStats: { hp:250, str:20, mag:36, def:28, spr:40, spd:30 },
     skills: [
       { id:'kmt_slap', name:'ตบมือ', type:'physical', power:60, gutsCost:0, cooldown:0, desc:'โจมตีธรรมดา' },
-      { id:'kmt_heal', name:'พรทิพย์', type:'heal', power:220, gutsCost:70, cooldown:4, desc:'ฟื้นฟู HP เพื่อนทั้งทีม' },
+      { id:'kmt_heal', name:'พรทิพย์', type:'heal', power:120, gutsCost:70, cooldown:5, desc:'ฟื้นฟู HP เพื่อนทั้งทีม' },
     ],
     lore: 'กุมารน้อยจิตใสผู้คุ้มครอง รักษาแผลได้ด้วยน้ำพรทิพย์',
   },
@@ -57,7 +57,7 @@ export const GHOST_REG: Record<string, GhostDef> = {
     baseStats: { hp:275, str:44, mag:28, def:20, spr:18, spd:28 },
     skills: [
       { id:'pret_claws', name:'เล็บเปรต', type:'physical', power:95, gutsCost:0, cooldown:0, desc:'โจมตีธรรมดา' },
-      { id:'pret_feast', name:'กินวิญญาณ', type:'physical', power:180, gutsCost:75, cooldown:3, desc:'โจมตีรุนแรงและดูด HP 30%' },
+      { id:'pret_feast', name:'กินวิญญาณ', type:'physical', power:180, gutsCost:75, cooldown:3, desc:'โจมตีรุนแรงและดูด HP 15%' },
     ],
     lore: 'วิญญาณโลภที่หิวโหยไม่สิ้นสุด กินทุกอย่างที่ขวางหน้า',
   },

@@ -477,7 +477,7 @@ export default function Battle() {
             const critStr = isCrit ? ' ' + rnd(CRIT_SUFFIX) : '';
 
             if (skill.id === 'pret_feast') {
-              const drain = Math.floor(dmg * 0.3);
+              const drain = Math.floor(dmg * 0.15);
               hpDelta[actor.ghost.id] = drain;
               logQ.push({ text: `${SKILL_FLAVOR['pret_feast']} → ${tName} -${dmg}${critStr} | ดูด HP +${drain}`, type: 'skill' });
             } else if (skill.id === 'pisaj_inferno') {
