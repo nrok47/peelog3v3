@@ -195,9 +195,9 @@ export default function Battle() {
 
         const target = enemies[Math.floor(Math.random() * enemies.length)];
         const dmg    = Math.max(1, Math.floor(
-          actor.boostedStats.str * 0.8
+          actor.boostedStats.str * 1.5
           + Math.random() * 20
-          - target.boostedStats.def * 0.4
+          - target.boostedStats.def * 0.3
         ));
 
         setLog(l => [...l.slice(-30), {

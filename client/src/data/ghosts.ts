@@ -4,7 +4,7 @@ export const GHOST_REG: Record<string, GhostDef> = {
   pob: {
     id: 'pob', name: 'Pob', nameTh: 'ปอบ',
     element: 'fire', classType: 'dps', rarity: 'common', emoji: '👻',
-    baseStats: { hp:1200, str:38, mag:20, def:25, spr:18, spd:32 },
+    baseStats: { hp:300, str:38, mag:20, def:25, spr:18, spd:32 },
     skills: [
       { id:'pob_bite', name:'กัดสาป', type:'physical', power:80, gutsCost:0, cooldown:0, desc:'โจมตีธรรมดา' },
       { id:'pob_curse', name:'ไฟปอบ', type:'magical', power:160, gutsCost:60, cooldown:3, desc:'ยิงลูกไฟสาปสังหาร' },
@@ -14,7 +14,7 @@ export const GHOST_REG: Record<string, GhostDef> = {
   phiDib: {
     id: 'phiDib', name: 'Phi Dib', nameTh: 'ผีดิบ',
     element: 'earth', classType: 'tank', rarity: 'common', emoji: '🧟',
-    baseStats: { hp:1600, str:38, mag:10, def:44, spr:20, spd:18 },
+    baseStats: { hp:400, str:38, mag:10, def:44, spr:20, spd:18 },
     skills: [
       { id:'phidib_slam', name:'ฟัดโครม', type:'physical', power:90, gutsCost:0, cooldown:0, desc:'โจมตีธรรมดา' },
       { id:'phidib_taunt', name:'ท้าทาย', type:'buff', power:0, gutsCost:50, cooldown:5, desc:'บังคับศัตรูโจมตีตัวเอง' },
@@ -24,7 +24,7 @@ export const GHOST_REG: Record<string, GhostDef> = {
   krasue: {
     id: 'krasue', name: 'Krasue', nameTh: 'กระสือ',
     element: 'dark', classType: 'mage', rarity: 'uncommon', emoji: '💀',
-    baseStats: { hp:900, str:15, mag:50, def:18, spr:42, spd:38 },
+    baseStats: { hp:225, str:15, mag:50, def:18, spr:42, spd:38 },
     skills: [
       { id:'krasue_drain', name:'ดูดพลัง', type:'magical', power:70, gutsCost:0, cooldown:0, desc:'โจมตีและดูด HP' },
       { id:'krasue_curse', name:'คำสาปกระสือ', type:'debuff', power:200, gutsCost:80, cooldown:4, desc:'สาปลด DEF/SPR ศัตรูทั้งทีม' },
@@ -34,7 +34,7 @@ export const GHOST_REG: Record<string, GhostDef> = {
   kumantong: {
     id: 'kumantong', name: 'Kumantong', nameTh: 'กุมารทอง',
     element: 'light', classType: 'healer', rarity: 'uncommon', emoji: '👼',
-    baseStats: { hp:1000, str:20, mag:36, def:28, spr:40, spd:30 },
+    baseStats: { hp:250, str:20, mag:36, def:28, spr:40, spd:30 },
     skills: [
       { id:'kmt_slap', name:'ตบมือ', type:'physical', power:60, gutsCost:0, cooldown:0, desc:'โจมตีธรรมดา' },
       { id:'kmt_heal', name:'พรทิพย์', type:'heal', power:220, gutsCost:70, cooldown:4, desc:'ฟื้นฟู HP เพื่อนทั้งทีม' },
@@ -44,7 +44,7 @@ export const GHOST_REG: Record<string, GhostDef> = {
   nangTani: {
     id: 'nangTani', name: 'Nang Tani', nameTh: 'นางตานี',
     element: 'wood', classType: 'mage', rarity: 'uncommon', emoji: '🌿',
-    baseStats: { hp:950, str:18, mag:46, def:22, spr:36, spd:36 },
+    baseStats: { hp:240, str:18, mag:46, def:22, spr:36, spd:36 },
     skills: [
       { id:'tani_vine', name:'เถาวัลย์รัด', type:'magical', power:75, gutsCost:0, cooldown:0, desc:'โจมตีธรรมดา' },
       { id:'tani_sleep', name:'ต้นกล้วยสะกด', type:'debuff', power:0, gutsCost:90, cooldown:5, desc:'สะกดจิตศัตรูทั้งทีมหยุดนิ่ง 2 วินาที' },
@@ -54,7 +54,7 @@ export const GHOST_REG: Record<string, GhostDef> = {
   pret: {
     id: 'pret', name: 'Pret', nameTh: 'เปรต',
     element: 'dark', classType: 'dps', rarity: 'uncommon', emoji: '👁️',
-    baseStats: { hp:1100, str:44, mag:28, def:20, spr:18, spd:28 },
+    baseStats: { hp:275, str:44, mag:28, def:20, spr:18, spd:28 },
     skills: [
       { id:'pret_claws', name:'เล็บเปรต', type:'physical', power:95, gutsCost:0, cooldown:0, desc:'โจมตีธรรมดา' },
       { id:'pret_feast', name:'กินวิญญาณ', type:'physical', power:180, gutsCost:75, cooldown:3, desc:'โจมตีรุนแรงและดูด HP 30%' },
@@ -64,7 +64,7 @@ export const GHOST_REG: Record<string, GhostDef> = {
   maeNak: {
     id: 'maeNak', name: 'Mae Nak', nameTh: 'แม่นาค',
     element: 'water', classType: 'tank', rarity: 'rare', emoji: '🪭',
-    baseStats: { hp:2000, str:35, mag:25, def:50, spr:40, spd:22 },
+    baseStats: { hp:500, str:35, mag:25, def:50, spr:40, spd:22 },
     skills: [
       { id:'nak_splash', name:'ซัดน้ำ', type:'physical', power:85, gutsCost:0, cooldown:0, desc:'โจมตีธรรมดา' },
       { id:'nak_shield', name:'รักนิรันดร์', type:'buff', power:0, gutsCost:60, cooldown:6, desc:'ลดความเสียหายที่เพื่อนรับ 40% เป็นเวลา 3 วิ' },
@@ -74,7 +74,7 @@ export const GHOST_REG: Record<string, GhostDef> = {
   kalakinee: {
     id: 'kalakinee', name: 'Kalakinee', nameTh: 'กาลกิณี',
     element: 'metal', classType: 'debuffer', rarity: 'rare', emoji: '⚡',
-    baseStats: { hp:800, str:25, mag:42, def:20, spr:30, spd:44 },
+    baseStats: { hp:200, str:25, mag:42, def:20, spr:30, spd:44 },
     skills: [
       { id:'kala_zap', name:'ฟ้าผ่า', type:'magical', power:70, gutsCost:0, cooldown:0, desc:'โจมตีธรรมดา' },
       { id:'kala_hex', name:'คำสาปกาล', type:'debuff', power:0, gutsCost:85, cooldown:5, desc:'ลด STR/MAG ศัตรูทั้งทีม 25% และตัด GUTS' },
@@ -84,7 +84,7 @@ export const GHOST_REG: Record<string, GhostDef> = {
   pisaj: {
     id: 'pisaj', name: 'Pisaj', nameTh: 'ปีศาจ',
     element: 'fire', classType: 'dps', rarity: 'rare', emoji: '🔥',
-    baseStats: { hp:1300, str:45, mag:36, def:28, spr:25, spd:30 },
+    baseStats: { hp:325, str:45, mag:36, def:28, spr:25, spd:30 },
     skills: [
       { id:'pisaj_burn', name:'เผาไหม้', type:'physical', power:90, gutsCost:0, cooldown:0, desc:'โจมตีธรรมดา' },
       { id:'pisaj_inferno', name:'นรกลุกโชน', type:'magical', power:140, gutsCost:70, cooldown:3, desc:'ลุกไฟ DoT ไหม้ 3 วิ' },
@@ -94,7 +94,7 @@ export const GHOST_REG: Record<string, GhostDef> = {
   phiTaiHong: {
     id: 'phiTaiHong', name: 'Phi Tai Hong', nameTh: 'ผีตายโหง',
     element: 'dark', classType: 'berserker', rarity: 'rare', emoji: '💢',
-    baseStats: { hp:1400, str:52, mag:15, def:22, spr:15, spd:26 },
+    baseStats: { hp:350, str:52, mag:15, def:22, spr:15, spd:26 },
     skills: [
       { id:'pth_rage', name:'คลุ้มคลั่ง', type:'physical', power:100, gutsCost:0, cooldown:0, desc:'โจมตีธรรมดา' },
       { id:'pth_rampage', name:'โหมกระหน่ำ', type:'physical', power:220, gutsCost:80, cooldown:4, desc:'โจมตีสุ่มศัตรู 3 ครั้งติดต่อกัน' },
@@ -104,7 +104,7 @@ export const GHOST_REG: Record<string, GhostDef> = {
   asurakay: {
     id: 'asurakay', name: 'Asurakay', nameTh: 'อสุรกาย',
     element: 'earth', classType: 'boss_tank', rarity: 'legendary', emoji: '🗿',
-    baseStats: { hp:3000, str:55, mag:40, def:56, spr:46, spd:20 },
+    baseStats: { hp:750, str:55, mag:40, def:56, spr:46, spd:20 },
     skills: [
       { id:'asura_crush', name:'บดขยี้', type:'physical', power:110, gutsCost:0, cooldown:0, desc:'โจมตีธรรมดา' },
       { id:'asura_titan', name:'ไททันกร้าว', type:'physical', power:300, gutsCost:90, cooldown:6, desc:'ปล่อยพลังยักษ์กระจายทั้งทีม' },
@@ -114,7 +114,7 @@ export const GHOST_REG: Record<string, GhostDef> = {
   motherSpirit: {
     id: 'motherSpirit', name: 'Mother Spirit', nameTh: 'แม่เจ้าของ',
     element: 'light', classType: 'healer', rarity: 'legendary', emoji: '✨',
-    baseStats: { hp:1500, str:20, mag:52, def:35, spr:56, spd:28 },
+    baseStats: { hp:375, str:20, mag:52, def:35, spr:56, spd:28 },
     skills: [
       { id:'ms_bless', name:'อวยพร', type:'magical', power:65, gutsCost:0, cooldown:0, desc:'โจมตีธรรมดา' },
       { id:'ms_revive', name:'ฟื้นคืนชีพ', type:'heal', power:0, gutsCost:100, cooldown:8, desc:'ฟื้นฟูสมาชิกที่ HP ต่ำสุดเต็ม' },
