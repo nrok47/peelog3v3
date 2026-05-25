@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { GHOST_REG, ELEMENT_LABELS, CLASS_LABELS } from '../data/ghosts';
 import Chibi from '../components/Chibi';
@@ -9,6 +9,7 @@ type Tab = 'core' | 'frame' | 'mass' | 'skills';
 
 export default function SpiritDetail() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { ghosts, team, updateGhost, player, setTeam } = useGameStore();
 
   const [tab, setTab] = useState<Tab>('core');
@@ -323,7 +324,7 @@ export default function SpiritDetail() {
                 </div>
               )}
             </div>
-            <button className="btn btn-purple btn-full" onClick={() => {}}>
+            <button className="btn btn-purple btn-full" onClick={() => navigate('/forge', { state: { ghostId: ghost.id } })}>
               🔮 ไปที่ Forge เพื่อ Reroll
             </button>
           </div>

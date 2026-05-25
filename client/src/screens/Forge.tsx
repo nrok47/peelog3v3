@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { GHOST_REG } from '../data/ghosts';
 import Chibi from '../components/Chibi';
@@ -17,9 +17,15 @@ const MASS_AFFIXES = [
 
 export default function Forge() {
   const navigate   = useNavigate();
+  const location   = useLocation();
   const { ghosts, team, updateGhost, player, spendDust } = useGameStore();
-  const [tab, setTab]         = useState<ForgeTab>('frame');
-  const [selectedId, setSelectedId] = useState(team[0]?.id ?? '');
+  const [tab, setTab]         = useState<ForgeTab>(() =>
+    (location.state as { ghostId?: string } | null)?.ghostId ? 'mass' : 'frame'
+  );
+  const [selectedId, setSelectedId] = useState<string>(() => {
+    const fromNav = (location.state as { ghostId?: string } | null)?.ghostId;
+    return fromNav ?? team[0]?.id ?? '';
+  });
   const [msg, setMsg]         = useState('');
   const [rolling, setRolling] = useState(false);
 
