@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { Ghost, GameState, Decision } from '../types';
-import { db, Auth, GhostService, SaveService } from '../db/supabase';
+import { db, Auth, GhostService, SaveService, LeaderboardService } from '../db/supabase';
 import { GHOST_LIST } from '../data/ghosts';
 import { ZONE_DEFS, getZoneIndex } from '../data/zones';
 
@@ -19,6 +19,7 @@ interface GameStore extends GameState {
   applyAdventureChoice: (eventId: string, choiceId: string, corruptionDelta: number, dustReward: number, bondGain: number) => Promise<void>;
   advanceZoneStep: () => Promise<{ zoneCleared: boolean; newZoneId: string | null }>;
   setFieldAmulet: (pos: number, amuletId: string | null) => Promise<void>;
+  submitArenaScore: (score: number) => Promise<void>;
   passiveDustEarned: number;
   passiveRate: number;        // dust/hour current rate (bond-based)
 }
@@ -277,6 +278,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set(state => ({
       player: state.player ? { ...state.player, inventory: newInventory } : null,
     }));
+  },
+
+  async submitArenaScore(score) {
+    const { player, save } = get();
+    if (!player) return;
+    await LeaderboardService.submit(
+      player.id, player.username, score, save?.current_ending ?? 'neutral'
+    );
   },
 
   async summonGhost(ghostType, cost) {

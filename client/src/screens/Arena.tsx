@@ -1,14 +1,14 @@
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
+import { LeaderboardService } from '../db/supabase';
 import { GHOST_REG } from '../data/ghosts';
 import Chibi from '../components/Chibi';
 import ScreenHeader from '../components/ScreenHeader';
 
-const MOCK_BOARD = [
-  { name: 'จอมผีอุบล',    score: 1340, desc: 'ปอบ · กระสือ · ผีตายโหง' },
-  { name: 'แม่มดขอนแก่น', score: 1080, desc: 'แม่นาค · กุมารทอง · นางตานี' },
-  { name: 'เด็กวัดสีลม',  score:  760, desc: 'อสุรกาย · เปรต · ปีศาจ' },
-];
+const ENDING_LABEL: Record<string, string> = {
+  good: '🌟', neutral: '⚖️', bad: '💀', true: '🔮',
+};
 
 function getRank(score: number) {
   if (score >= 1000) return { tier: 'แชมเปี้ยน', color: '#f5c518', icon: '👑' };
@@ -19,13 +19,34 @@ function getRank(score: number) {
 
 export default function Arena() {
   const navigate = useNavigate();
-  const { ghosts, team } = useGameStore();
+  const { ghosts, team, player } = useGameStore();
+
+  const [board, setBoard]             = useState<{ username: string; score: number; ending: string }[]>([]);
+  const [myBestScore, setMyBestScore] = useState<number | null>(null);
+  const [boardLoading, setBoardLoading] = useState(true);
+
+  useEffect(() => {
+    setBoardLoading(true);
+    const fetchBoard = LeaderboardService.getTop(10).then(data =>
+      data.map(r => ({ username: r.username as string, score: r.score as number, ending: (r.ending ?? 'neutral') as string }))
+    );
+    const fetchMine = player
+      ? LeaderboardService.getPlayerBestScore(player.id)
+      : Promise.resolve(null);
+    Promise.all([fetchBoard, fetchMine]).then(([topData, myScore]) => {
+      setBoard(topData);
+      setMyBestScore(myScore);
+      setBoardLoading(false);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const avgLevel = team.length > 0
     ? Math.round(team.reduce((s, g) => s + g.level, 0) / team.length)
     : 1;
-  const myScore = Math.min(9999, ghosts.length * 30 + avgLevel * 50);
-  const rank    = getRank(myScore);
+  const localScore = Math.min(9999, ghosts.length * 30 + avgLevel * 50);
+  const displayScore = myBestScore ?? localScore;
+  const rank = getRank(displayScore);
 
   return (
     <div className="screen fade-in">
@@ -48,10 +69,10 @@ export default function Arena() {
             fontFamily: 'JetBrains Mono, monospace',
             fontSize: 32, fontWeight: 700, color: '#fff', marginTop: 4,
           }}>
-            {myScore.toLocaleString()}
+            {displayScore.toLocaleString()}
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-            คะแนนสัปดาห์นี้
+            {myBestScore !== null ? 'คะแนนสูงสุดของคุณ' : 'คะแนนประเมิน (ยังไม่เคยลงสนาม)'}
           </div>
         </div>
 
@@ -98,35 +119,52 @@ export default function Arena() {
         <div>
           <div className="section-hd">
             <span className="section-title">🏅 อันดับสัปดาห์นี้</span>
-            <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Mock · sync coming soon</span>
+            <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Season 2026-S1</span>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {MOCK_BOARD.map((r, i) => {
-              const rt = getRank(r.score);
-              return (
-                <div key={i} className="card" style={{
-                  display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px',
-                }}>
-                  <div style={{ fontSize: 20, width: 28, textAlign: 'center' }}>
-                    {i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: 13 }}>{r.name}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{r.desc}</div>
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{
-                      fontFamily: 'JetBrains Mono, monospace',
-                      fontWeight: 700, color: rt.color,
-                    }}>
-                      {r.score.toLocaleString()}
+          {boardLoading ? (
+            <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '16px 0', fontSize: 13 }}>
+              กำลังโหลด...
+            </div>
+          ) : board.length === 0 ? (
+            <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '16px 0', fontSize: 13 }}>
+              ยังไม่มีข้อมูล — เป็นคนแรกที่ลงสนาม!
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {board.map((r, i) => {
+                const rt = getRank(r.score);
+                const isMe = r.username === player?.username;
+                return (
+                  <div key={i} className="card" style={{
+                    display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px',
+                    border: isMe ? `1.5px solid ${rt.color}60` : undefined,
+                    background: isMe ? `${rt.color}10` : undefined,
+                  }}>
+                    <div style={{ fontSize: 18, width: 28, textAlign: 'center', fontFamily: 'JetBrains Mono, monospace', color: 'var(--text-muted)', fontWeight: 700 }}>
+                      {i + 1}
                     </div>
-                    <div style={{ fontSize: 10, color: rt.color }}>{rt.tier}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {r.username}
+                        {isMe && <span style={{ fontSize: 10, background: 'var(--gold)', color: '#000', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>YOU</span>}
+                      </div>
+                      <div style={{ fontSize: 10, color: rt.color, marginTop: 1 }}>
+                        {rt.icon} {rt.tier} {ENDING_LABEL[r.ending] ?? ''}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{
+                        fontFamily: 'JetBrains Mono, monospace',
+                        fontWeight: 700, color: rt.color, fontSize: 15,
+                      }}>
+                        {r.score.toLocaleString()}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         <div style={{

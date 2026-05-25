@@ -224,7 +224,7 @@ function buildArenaEnemies(teamAvgLevel: number, count: number): import('../type
 }
 
 export default function Battle() {
-  const { ghosts, team, player, save, addBattleRewards, advanceZoneStep } = useGameStore();
+  const { ghosts, team, player, save, addBattleRewards, advanceZoneStep, submitArenaScore } = useGameStore();
   const navigate  = useNavigate();
   const location  = useLocation();
   const arenaMode = (location.state as { arenaMode?: boolean } | null)?.arenaMode ?? false;
@@ -314,6 +314,7 @@ export default function Battle() {
           const sc = avgEnemyLv * 50 + rewards.dustGained * 2;
           setArenaScore(sc);
           setBattleRewards({ ...rewards, zoneCleared: false });
+          submitArenaScore(sc);
         }
       });
     } else {

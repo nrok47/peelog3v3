@@ -145,7 +145,32 @@ export const LeaderboardService = {
     return data ?? [];
   },
 
+  async getPlayerBestScore(playerId: string): Promise<number | null> {
+    const { data } = await db.from('leaderboard')
+      .select('score')
+      .eq('player_id', playerId)
+      .eq('season', '2026-S1')
+      .order('score', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    return data?.score ?? null;
+  },
+
   async submit(playerId: string, username: string, score: number, ending: string) {
-    await db.from('leaderboard').insert({ player_id: playerId, username, score, ending, season: '2026-S1' });
+    const { data: existing } = await db
+      .from('leaderboard')
+      .select('id, score')
+      .eq('player_id', playerId)
+      .eq('season', '2026-S1')
+      .maybeSingle();
+    if (existing) {
+      if (score > (existing.score ?? 0)) {
+        await db.from('leaderboard')
+          .update({ score, username, ending })
+          .eq('id', existing.id);
+      }
+    } else {
+      await db.from('leaderboard').insert({ player_id: playerId, username, score, ending, season: '2026-S1' });
+    }
   },
 };
