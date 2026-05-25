@@ -234,8 +234,8 @@ export default function Battle() {
           const regenHp = c.regenPct > 0 ? Math.floor(c.maxHp * c.regenPct) : 0;
           return {
             ...c,
-            atb:       Math.min(100, c.atb + spd / 30),
-            guts:      Math.min(100, c.guts + spd * 0.02 * c.gutsMultiplier),
+            atb:       Math.min(100, c.atb + spd / 10),
+            guts:      Math.min(100, c.guts + spd * 0.067 * c.gutsMultiplier),
             currentHp: regenHp > 0 ? Math.min(c.maxHp, c.currentHp + regenHp) : c.currentHp,
           };
         });
