@@ -8,11 +8,8 @@ import Battle           from './screens/Battle';
 import Roster           from './screens/Roster';
 import SpiritDetail     from './screens/SpiritDetail';
 import Map              from './screens/Map';
-import Forge            from './screens/Forge';
-import SkillTree        from './screens/SkillTree';
+import Upgrade          from './screens/Upgrade';
 import Adventure        from './screens/Adventure';
-import Amulet           from './screens/Amulet';
-import Evolution        from './screens/Evolution';
 import ElementCodex     from './screens/ElementCodex';
 import CorruptionEnding from './screens/CorruptionEnding';
 
@@ -46,11 +43,8 @@ export default function App() {
           <Route path="/roster"     element={<ProtectedRoute><Roster /></ProtectedRoute>} />
           <Route path="/spirit/:id" element={<ProtectedRoute><SpiritDetail /></ProtectedRoute>} />
           <Route path="/map"        element={<ProtectedRoute><Map /></ProtectedRoute>} />
-          <Route path="/forge"      element={<ProtectedRoute><Forge /></ProtectedRoute>} />
-          <Route path="/skill-tree" element={<ProtectedRoute><SkillTree /></ProtectedRoute>} />
+          <Route path="/upgrade"    element={<ProtectedRoute><Upgrade /></ProtectedRoute>} />
           <Route path="/adventure"  element={<ProtectedRoute><Adventure /></ProtectedRoute>} />
-          <Route path="/amulet"     element={<ProtectedRoute><Amulet /></ProtectedRoute>} />
-          <Route path="/evolution"  element={<ProtectedRoute><Evolution /></ProtectedRoute>} />
           <Route path="/codex"      element={<ProtectedRoute><ElementCodex /></ProtectedRoute>} />
           <Route path="/ending"     element={<ProtectedRoute><CorruptionEnding /></ProtectedRoute>} />
 

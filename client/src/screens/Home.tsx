@@ -6,14 +6,12 @@ import Chibi from '../components/Chibi';
 import BottomNav from '../components/BottomNav';
 
 const MENU = [
-  { path: '/battle',    icon: '⚔️', label: 'ต่อสู้',      color: '#ff4757', desc: '3v3 ATB Battle' },
-  { path: '/roster',    icon: '👻', label: 'วิญญาณ',      color: '#4d9fff', desc: 'จัดการทีม' },
-  { path: '/map',       icon: '🗺️', label: 'แผนที่',      color: '#26de81', desc: 'สำรวจดินแดน' },
-  { path: '/forge',     icon: '🔨', label: 'ตีเหล็ก',     color: '#fd9644', desc: 'อัปเกรดกาย' },
-  { path: '/adventure', icon: '📜', label: 'ผจญภัย',      color: '#a55eea', desc: 'เหตุการณ์' },
-  { path: '/codex',     icon: '📚', label: 'ตำราธาตุ',    color: '#45e8d8', desc: 'จุดอ่อน-แข็ง' },
-  { path: '/skill-tree',icon: '🌳', label: 'ต้นไม้สกิล', color: '#7ed56f', desc: 'แจกแต้ม' },
-  { path: '/amulet',    icon: '📿', label: 'เครื่องราง',  color: '#f5c518', desc: 'ใส่ไอเทม' },
+  { path: '/battle',    icon: '⚔️', label: 'ต่อสู้',    color: '#ff4757', desc: '3v3 ATB Battle' },
+  { path: '/roster',    icon: '👻', label: 'วิญญาณ',    color: '#4d9fff', desc: 'จัดการทีม' },
+  { path: '/map',       icon: '🗺️', label: 'แผนที่',    color: '#26de81', desc: 'สำรวจดินแดน' },
+  { path: '/upgrade',   icon: '🔧', label: 'อัปเกรด',   color: '#fd9644', desc: 'Forge · สกิล · ยันต์ · วิวัฒน์' },
+  { path: '/adventure', icon: '📜', label: 'ผจญภัย',    color: '#a55eea', desc: 'เหตุการณ์' },
+  { path: '/codex',     icon: '📚', label: 'ตำราธาตุ',  color: '#45e8d8', desc: 'จุดอ่อน-แข็ง' },
 ];
 
 export default function Home() {
