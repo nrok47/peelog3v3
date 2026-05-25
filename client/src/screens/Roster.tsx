@@ -7,6 +7,11 @@ import {
   SUMMON_POOLS, POOL_COST, POOL_LABELS,
   rollRarity, pickGhostByRarity,
 } from '../data/ghosts';
+
+const RARITY_STARS: Record<string, string> = {
+  common: '★', uncommon: '★★', rare: '★★★', legendary: '★★★★',
+};
+const EXP_TO_NEXT = (level: number) => Math.floor(100 * Math.pow(1.18, level - 1));
 import Chibi from '../components/Chibi';
 import ScreenHeader from '../components/ScreenHeader';
 import BottomNav from '../components/BottomNav';
@@ -22,7 +27,7 @@ export default function Roster() {
   const [defenseSaved, setDefenseSaved] = useState(false);
 
   const [elFilter, setElFilter] = useState('ทั้งหมด');
-  const [sort, setSort] = useState<'level' | 'bond' | 'element'>('level');
+  const [sort, setSort] = useState<'level' | 'bond' | 'element' | 'rarity'>('level');
   const [showSummon, setShowSummon] = useState(false);
   const [selectedPool, setSelectedPool] = useState<PoolKey>('basic');
   const [summonPhase, setSummonPhase] = useState<'select' | 'spinning' | 'reveal'>('select');
@@ -59,12 +64,14 @@ export default function Roster() {
     }, 1500);
   }
 
+  const RARITY_ORDER: Record<string, number> = { legendary: 0, rare: 1, uncommon: 2, common: 3 };
   const filtered = ghosts
     .filter(g => elFilter === 'ทั้งหมด' || GHOST_REG[g.ghost_type]?.element === elFilter)
     .sort((a, b) => {
       if (sort === 'level')   return b.level - a.level;
       if (sort === 'bond')    return b.bond - a.bond;
       if (sort === 'element') return (GHOST_REG[a.ghost_type]?.element ?? '').localeCompare(GHOST_REG[b.ghost_type]?.element ?? '');
+      if (sort === 'rarity')  return (RARITY_ORDER[GHOST_REG[a.ghost_type]?.rarity ?? 'common'] ?? 3) - (RARITY_ORDER[GHOST_REG[b.ghost_type]?.rarity ?? 'common'] ?? 3);
       return 0;
     });
 
@@ -297,15 +304,15 @@ export default function Roster() {
 
         {/* Sort row */}
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          <span className="label-sm">เรียงตาม:</span>
-          {(['level', 'bond', 'element'] as const).map(s => (
+          <span className="label-sm">เรียง:</span>
+          {(['level', 'bond', 'rarity', 'element'] as const).map(s => (
             <button
               key={s}
               className={`chip${sort === s ? ' active' : ''}`}
               style={{ padding: '3px 10px', fontSize: 11 }}
               onClick={() => setSort(s)}
             >
-              {s === 'level' ? 'Lv' : s === 'bond' ? 'Bond' : 'ธาตุ'}
+              {s === 'level' ? 'Lv' : s === 'bond' ? 'Bond' : s === 'rarity' ? 'Rarity' : 'ธาตุ'}
             </button>
           ))}
         </div>
@@ -324,67 +331,78 @@ export default function Roster() {
               const inTeam = teamIds.has(ghost.id);
               const hpPct = Math.min(100, (ghost.stats?.hp ?? def.baseStats.hp) / def.baseStats.hp * 100);
 
+              const expNeeded = EXP_TO_NEXT(ghost.level);
+              const expPct = Math.min(100, ((ghost.exp ?? 0) / expNeeded) * 100);
               return (
                 <div
                   key={ghost.id}
                   onClick={() => navigate(`/spirit/${ghost.id}`)}
                   style={{
                     background: inTeam
-                      ? 'linear-gradient(135deg, rgba(245,197,24,0.1), rgba(245,197,24,0.05))'
-                      : 'var(--bg-card)',
+                      ? 'linear-gradient(135deg, rgba(245,197,24,0.12), rgba(245,197,24,0.05))'
+                      : RARITY_COLOR[def.rarity],
                     border: inTeam
-                      ? '1.5px solid rgba(245,197,24,0.4)'
-                      : '1px solid rgba(255,255,255,0.08)',
+                      ? '1.5px solid rgba(245,197,24,0.6)'
+                      : `1.5px solid ${RARITY_TEXT[def.rarity]}55`,
                     borderRadius: 'var(--r-lg)',
                     padding: '12px 10px',
                     cursor: 'pointer',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: 8,
+                    gap: 7,
                     transition: 'all 0.15s',
                     position: 'relative',
                   }}
                 >
-                  {inTeam && (
-                    <span style={{
-                      position: 'absolute', top: 6, right: 8,
-                      fontSize: 10, fontWeight: 700, color: 'var(--gold)',
-                    }}>⚔️ ทีม</span>
-                  )}
+                  {/* Top-right badges */}
+                  <div style={{ position: 'absolute', top: 6, right: 8, display: 'flex', gap: 4, alignItems: 'center' }}>
+                    {(ghost.stat_points ?? 0) > 0 && (
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, color: '#fff',
+                        background: '#7c3aed', borderRadius: 10, padding: '1px 6px',
+                      }}>+{ghost.stat_points}pt</span>
+                    )}
+                    {inTeam && (
+                      <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--gold)' }}>⚔️</span>
+                    )}
+                  </div>
+
+                  {/* Chibi + name + rarity */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <Chibi emoji={def.emoji} element={def.element} size={52} evoStage={ghost.evo_stage} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {ghost.nickname || def.nameTh}
                       </div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                        Lv.{ghost.level}
+                      <div style={{ fontSize: 11, color: RARITY_TEXT[def.rarity], fontWeight: 700 }}>
+                        {RARITY_STARS[def.rarity]} {RARITY_LABELS[def.rarity]}
                       </div>
                     </div>
                   </div>
 
-                  {/* Badges */}
+                  {/* Badges: element + class */}
                   <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                    <span className={`badge badge-${def.element}`}>
-                      {ELEMENT_LABELS[def.element]}
-                    </span>
-                    <span className={`badge badge-${def.classType}`}>
-                      {CLASS_LABELS[def.classType]}
-                    </span>
+                    <span className={`badge badge-${def.element}`}>{ELEMENT_LABELS[def.element]}</span>
+                    <span className={`badge badge-${def.classType}`}>{CLASS_LABELS[def.classType]}</span>
                   </div>
 
-                  {/* HP bar */}
+                  {/* EXP bar */}
                   <div>
-                    <div className="bar-track thin">
-                      <div
-                        className={`bar-fill ${hpPct < 30 ? 'bar-hp-low' : 'bar-hp'}`}
-                        style={{ width: `${hpPct}%` }}
-                      />
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 3 }}>
-                      <span className="label-sm">Bond {ghost.bond}</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
                       <span className="label-sm">Lv.{ghost.level}</span>
+                      <span className="label-sm">{ghost.exp ?? 0}/{expNeeded} EXP</span>
                     </div>
+                    <div className="bar-track thin">
+                      <div className="bar-fill" style={{ width: `${expPct}%`, background: 'linear-gradient(90deg, #a78bfa, #7c3aed)' }} />
+                    </div>
+                  </div>
+
+                  {/* Bond + HP */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span className="label-sm">💞 Bond {ghost.bond}</span>
+                    <span className="label-sm" style={{ color: hpPct < 30 ? 'var(--red)' : 'var(--text-muted)' }}>
+                      HP {ghost.stats?.hp ?? def.baseStats.hp}
+                    </span>
                   </div>
                 </div>
               );
