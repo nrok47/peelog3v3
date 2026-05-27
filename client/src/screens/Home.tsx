@@ -5,6 +5,26 @@ import { GHOST_REG } from '../data/ghosts';
 import Chibi from '../components/Chibi';
 import BottomNav from '../components/BottomNav';
 
+const TUT_KEY = 'sm_tut_done';
+
+const TUT_STEPS = [
+  {
+    icon: '👻',
+    title: 'ยินดีต้อนรับ จอมขมังเวท!',
+    body: 'คุณได้รับวิญญาณตัวแรกแล้ว!\nไปที่ "วิญญาณ" เพื่อเพิ่มผีในทีม แล้วเริ่มต่อสู้ได้เลย',
+  },
+  {
+    icon: '⚔️',
+    title: 'เริ่มต่อสู้',
+    body: 'กด "สนามรบ" หรือ "แผนที่" เพื่อเข้า Battle\nชนะ → ได้ EXP + ฝุ่นวิญญาณ + Bond\nBond สูง = AI เก่งขึ้น + passive dust เพิ่ม',
+  },
+  {
+    icon: '🔮',
+    title: 'สะสมและอัปเกรด',
+    body: 'ใช้ฝุ่นวิญญาณ summon ผีใหม่ในหน้า "วิญญาณ"\nอัปเกรด Frame / Mass ที่ Forge\nท้าชิงอันดับใน Arena!',
+  },
+];
+
 const MENU = [
   { path: '/arena',     icon: '🏆', label: 'สนามรบ',   color: '#ff4757', desc: 'Arena · ไต่อันดับ' },
   { path: '/roster',    icon: '👻', label: 'วิญญาณ',    color: '#4d9fff', desc: 'จัดการทีม' },
@@ -16,8 +36,9 @@ const MENU = [
 
 export default function Home() {
   const navigate = useNavigate();
-  const { player, team, save, signOut, passiveDustEarned, passiveRate } = useGameStore();
+  const { player, team, save, signOut, passiveDustEarned, passiveRate, ghosts } = useGameStore();
   const [showDustNotif, setShowDustNotif] = useState(false);
+  const [tutStep, setTutStep] = useState(-1);
 
   useEffect(() => {
     if (passiveDustEarned > 0) {
@@ -26,6 +47,17 @@ export default function Home() {
       return () => clearTimeout(t);
     }
   }, [passiveDustEarned]);
+
+  useEffect(() => {
+    if (!localStorage.getItem(TUT_KEY) && ghosts.length <= 1) {
+      setTutStep(0);
+    }
+  }, [ghosts.length]);
+
+  function closeTut() {
+    localStorage.setItem(TUT_KEY, '1');
+    setTutStep(-1);
+  }
 
   const corruption = save?.corruption_score ?? 0;
   const chapter    = save?.chapter ?? 1;
@@ -304,6 +336,69 @@ export default function Home() {
       </div>
 
       <BottomNav />
+
+      {/* Tutorial overlay */}
+      {tutStep >= 0 && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 300,
+          background: 'rgba(11,17,32,0.88)',
+          display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+          padding: '0 16px 32px',
+          backdropFilter: 'blur(6px)',
+          animation: 'fadeIn 0.25s ease-out',
+        }}>
+          <div style={{ width: '100%', maxWidth: 420 }}>
+            {/* Step card */}
+            <div className="card" style={{ marginBottom: 12, animation: 'popIn 0.3s ease-out' }}>
+              <div style={{ fontSize: 40, textAlign: 'center', marginBottom: 10 }}>
+                {TUT_STEPS[tutStep].icon}
+              </div>
+              <div style={{ fontWeight: 700, fontSize: 17, textAlign: 'center', fontFamily: 'Bai Jamjuree, sans-serif', marginBottom: 10 }}>
+                {TUT_STEPS[tutStep].title}
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.7, textAlign: 'center', whiteSpace: 'pre-line' }}>
+                {TUT_STEPS[tutStep].body}
+              </div>
+              {/* Step dots */}
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginTop: 16 }}>
+                {TUT_STEPS.map((_, i) => (
+                  <div key={i} style={{
+                    width: i === tutStep ? 18 : 6, height: 6,
+                    borderRadius: 3,
+                    background: i === tutStep ? 'var(--gold)' : 'rgba(255,255,255,0.2)',
+                    transition: 'all 0.2s',
+                  }} />
+                ))}
+              </div>
+            </div>
+            {/* Buttons */}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ flex: 1 }}
+                onClick={closeTut}
+              >
+                ข้าม
+              </button>
+              <button
+                type="button"
+                className="btn btn-gold"
+                style={{ flex: 2 }}
+                onClick={() => {
+                  if (tutStep < TUT_STEPS.length - 1) {
+                    setTutStep(tutStep + 1);
+                  } else {
+                    closeTut();
+                  }
+                }}
+              >
+                {tutStep < TUT_STEPS.length - 1 ? 'ถัดไป →' : '🎮 เริ่มเลย!'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

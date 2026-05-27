@@ -20,12 +20,14 @@ function getRank(score: number) {
 
 export default function Arena() {
   const navigate = useNavigate();
-  const { ghosts, team, player } = useGameStore();
+  const { ghosts, team, player, saveDefenseTeam } = useGameStore();
 
   const [board, setBoard]               = useState<{ username: string; score: number; ending: string }[]>([]);
   const [myBestScore, setMyBestScore]   = useState<number | null>(null);
   const [myHasDefenseTeam, setMyHasDefenseTeam] = useState(false);
   const [boardLoading, setBoardLoading] = useState(true);
+  const [savingDefense, setSavingDefense] = useState(false);
+  const [defMsg, setDefMsg] = useState('');
 
   useEffect(() => {
     setBoardLoading(true);
@@ -113,6 +115,34 @@ export default function Arena() {
             <div>ต้องจัดทีมก่อน!</div>
           </div>
         )}
+
+        {/* Save defense team */}
+        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 700, fontSize: 13 }}>🛡️ ทีมตั้งรับ</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+              {myHasDefenseTeam
+                ? 'บันทึกแล้ว — ผู้เล่นอื่นสามารถท้าชิงได้'
+                : team.length > 0 ? 'บันทึกทีมปัจจุบันเป็นทีมตั้งรับ' : 'ต้องมีทีมก่อน'}
+            </div>
+            {defMsg && <div style={{ fontSize: 11, color: 'var(--green)', marginTop: 3, fontWeight: 700 }}>{defMsg}</div>}
+          </div>
+          <button
+            type="button"
+            className={`btn ${myHasDefenseTeam ? 'btn-outline' : 'btn-purple'} btn-sm`}
+            disabled={team.length === 0 || savingDefense}
+            onClick={async () => {
+              setSavingDefense(true);
+              await saveDefenseTeam();
+              setMyHasDefenseTeam(true);
+              setDefMsg('✅ บันทึกแล้ว!');
+              setSavingDefense(false);
+              setTimeout(() => setDefMsg(''), 2500);
+            }}
+          >
+            {savingDefense ? '...' : myHasDefenseTeam ? 'อัปเดต' : 'บันทึก'}
+          </button>
+        </div>
 
         {/* Challenge button */}
         <button

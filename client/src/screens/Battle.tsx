@@ -1090,32 +1090,53 @@ export default function Battle() {
             </div>
           )}
 
-          {phase === 'end' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {/* Win/lose banner */}
+          {/* end placeholder keeps height consistent */}
+        </div>
+
+        {/* ── END PHASE OVERLAY ─────────────────────────────────── */}
+        {phase === 'end' && (
+          <div style={{
+            position: 'absolute', inset: 0, zIndex: 100,
+            background: 'rgba(11,17,32,0.92)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '16px',
+            backdropFilter: 'blur(4px)',
+            animation: 'fadeIn 0.3s ease-out',
+          }}>
+            <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+              {/* Win/lose hero card */}
               <div style={{
-                textAlign: 'center', padding: '14px',
+                textAlign: 'center', padding: '28px 16px',
                 background: winner === 'player'
-                  ? 'linear-gradient(135deg, rgba(38,222,129,0.15), rgba(38,222,129,0.05))'
-                  : 'linear-gradient(135deg, rgba(255,71,87,0.15), rgba(255,71,87,0.05))',
-                border: `1.5px solid ${winner === 'player' ? 'rgba(38,222,129,0.4)' : 'rgba(255,71,87,0.4)'}`,
-                borderRadius: 'var(--r-lg)', fontSize: 20, fontWeight: 700,
-                fontFamily: 'Bai Jamjuree, sans-serif',
+                  ? 'linear-gradient(135deg, rgba(38,222,129,0.18), rgba(38,222,129,0.05))'
+                  : 'linear-gradient(135deg, rgba(255,71,87,0.18), rgba(255,71,87,0.05))',
+                border: `2px solid ${winner === 'player' ? 'rgba(38,222,129,0.5)' : 'rgba(255,71,87,0.5)'}`,
+                borderRadius: 'var(--r-lg)',
+                animation: 'popIn 0.4s ease-out',
               }}>
-                {winner === 'player' ? '🏆 ชนะแล้ว!' : '💀 พ่ายแพ้...'}
+                <div style={{ fontSize: 52, marginBottom: 8 }}>
+                  {winner === 'player' ? '🏆' : '💀'}
+                </div>
+                <div style={{
+                  fontSize: 26, fontWeight: 700,
+                  fontFamily: 'Bai Jamjuree, sans-serif',
+                  color: winner === 'player' ? 'var(--green)' : 'var(--red)',
+                }}>
+                  {winner === 'player' ? 'ชนะแล้ว!' : 'พ่ายแพ้...'}
+                </div>
               </div>
 
-              {/* Zone cleared banner */}
+              {/* Zone cleared */}
               {winner === 'player' && battleRewards?.zoneCleared && (
                 <div style={{
                   background: 'linear-gradient(135deg, rgba(245,197,24,0.2), rgba(245,197,24,0.05))',
                   border: '1.5px solid rgba(245,197,24,0.5)',
                   borderRadius: 'var(--r-lg)', padding: '12px 14px',
-                  textAlign: 'center', animation: 'popIn 0.4s ease-out',
+                  textAlign: 'center', animation: 'popIn 0.5s ease-out',
                 }}>
-                  <div style={{ fontSize: 22, marginBottom: 4 }}>🎉</div>
                   <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--gold)', fontFamily: 'Bai Jamjuree, sans-serif' }}>
-                    โซนผ่านแล้ว!
+                    🎉 โซนผ่านแล้ว!
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
                     {ZONE_DEFS[zoneIdx + 1]
@@ -1125,39 +1146,35 @@ export default function Battle() {
                 </div>
               )}
 
-              {/* Rewards box */}
+              {/* Rewards */}
               {winner === 'player' && battleRewards && (
                 <div style={{
-                  background: arenaMode ? 'rgba(245,197,24,0.09)' : 'rgba(245,197,24,0.07)',
-                  border: `1px solid rgba(245,197,24,0.25)`,
-                  borderRadius: 'var(--r-lg)', padding: '12px 14px',
-                  display: 'flex', flexDirection: 'column', gap: 4,
+                  background: 'rgba(245,197,24,0.07)',
+                  border: '1px solid rgba(245,197,24,0.25)',
+                  borderRadius: 'var(--r-lg)', padding: '14px',
+                  display: 'flex', flexDirection: 'column', gap: 6,
                 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gold)', marginBottom: 2 }}>
                     {arenaMode ? '🏆 Arena Rewards' : '✨ รางวัลการต่อสู้'}
                   </div>
                   {arenaMode && (
-                    <div style={{ fontSize: 20, fontWeight: 700, fontFamily: 'JetBrains Mono, monospace', color: 'var(--gold)' }}>
+                    <div style={{ fontSize: 22, fontWeight: 700, fontFamily: 'JetBrains Mono, monospace', color: 'var(--gold)' }}>
                       +{arenaScore.toLocaleString()} pts
                     </div>
                   )}
-                  <div style={{ fontSize: 12, color: 'var(--text-light)', display: 'flex', gap: 16 }}>
+                  <div style={{ display: 'flex', gap: 16, fontSize: 13, color: 'var(--text-light)' }}>
                     <span>⚡ EXP +{battleRewards.expGained}</span>
                     <span>🌀 +{battleRewards.dustGained} ฝุ่น</span>
                     <span>💞 Bond +2</span>
                   </div>
-                  {battleRewards.levelUps.length > 0 && (
-                    <div style={{ marginTop: 4 }}>
-                      {battleRewards.levelUps.map((ghostType, i) => (
-                        <div key={i} style={{
-                          fontSize: 12, fontWeight: 700, color: 'var(--gold)',
-                          animation: 'popIn 0.4s ease-out',
-                        }}>
-                          🎉 {GHOST_REG[ghostType]?.nameTh ?? ghostType} เลเวลอัพ! (+3 Skill Points)
-                        </div>
-                      ))}
+                  {battleRewards.levelUps.map((ghostType, i) => (
+                    <div key={i} style={{
+                      fontSize: 13, fontWeight: 700, color: 'var(--gold)',
+                      animation: 'popIn 0.4s ease-out',
+                    }}>
+                      🎉 {GHOST_REG[ghostType]?.nameTh ?? ghostType} เลเวลอัพ! (+3 Skill Points)
                     </div>
-                  )}
+                  ))}
                 </div>
               )}
 
@@ -1167,12 +1184,12 @@ export default function Battle() {
                 </div>
               )}
 
-              <button type="button" className="btn btn-gold btn-full" onClick={resetToSelect}>
-                {arenaMode ? '🏆 กลับ Arena' : '🔄 สู้ต่อ'}
+              <button type="button" className="btn btn-gold btn-full" style={{ fontSize: 16, padding: '14px' }} onClick={resetToSelect}>
+                {arenaMode ? '🏆 กลับ Arena' : winner === 'player' ? '🔄 สู้ต่อ' : '🔄 ลองใหม่'}
               </button>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
