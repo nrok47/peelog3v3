@@ -16,8 +16,8 @@ interface GameStore extends GameState {
   spendDust: (amount: number) => Promise<boolean>;
   summonGhost: (ghostType: string, cost: number) => Promise<Ghost>;
   addBattleRewards: (playerGhostIds: string[], avgEnemyLevel: number) => Promise<{ expGained: number; levelUps: string[]; dustGained: number }>;
-  applyAdventureChoice: (eventId: string, choiceId: string, corruptionDelta: number, dustReward: number, bondGain: number) => Promise<void>;
-  advanceZoneStep: () => Promise<{ zoneCleared: boolean; newZoneId: string | null }>;
+  applyAdventureChoice: (eventId: string, choiceId: string, corruptionDelta: number, dustReward: number, bondGain: number, coinsReward?: number, fluidReward?: number) => Promise<void>;
+  advanceZoneStep: () => Promise<{ zoneCleared: boolean; newZoneId: string | null; coinsGained: number; fluidGained: number }>;
   setFieldAmulet: (pos: number, amuletId: string | null) => Promise<void>;
   submitArenaScore: (score: number) => Promise<void>;
   saveDefenseTeam: () => Promise<void>;
@@ -209,9 +209,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
     return { expGained: EXP_PER_BATTLE, levelUps, dustGained: DUST_REWARD };
   },
 
-  async applyAdventureChoice(eventId, choiceId, corruptionDelta, dustReward, bondGain) {
+  async applyAdventureChoice(eventId, choiceId, corruptionDelta, dustReward, bondGain, coinsReward = 0, fluidReward = 0) {
     const { save, player, team } = get();
     if (!player) return;
+
+    if (save && (coinsReward > 0 || fluidReward > 0)) {
+      const newResources = {
+        coins: save.resources.coins + coinsReward,
+        necro_fluid: save.resources.necro_fluid + fluidReward,
+      };
+      await SaveService.checkpoint(save.id, { resources: newResources });
+      set(state => ({ save: state.save ? { ...state.save, resources: newResources } : null }));
+    }
 
     if (save && corruptionDelta !== 0) {
       const decision: Decision = { node_id: eventId, choice: choiceId, corruption_delta: corruptionDelta };
@@ -248,14 +257,21 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   async advanceZoneStep() {
     const { save } = get();
-    if (!save) return { zoneCleared: false, newZoneId: null };
+    if (!save) return { zoneCleared: false, newZoneId: null, coinsGained: 0, fluidGained: 0 };
 
     const zoneIdx  = getZoneIndex(save.zone_id);
     const zoneDef  = ZONE_DEFS[zoneIdx];
     const newSteps = save.steps_taken + 1;
 
-    // Boss battle clears the zone
+    // Boss battle clears the zone — จุด "หา" ของ coins/necro_fluid (เดิม dead resource ไม่มีทางหาเลย)
     if (newSteps >= (zoneDef?.steps ?? 5)) {
+      const coinsGain = 50 + zoneIdx * 10;
+      const fluidGain = 1;
+      const newResources = {
+        coins: save.resources.coins + coinsGain,
+        necro_fluid: save.resources.necro_fluid + fluidGain,
+      };
+
       const nextZone = ZONE_DEFS[zoneIdx + 1];
       if (nextZone) {
         const updates = {
@@ -263,21 +279,23 @@ export const useGameStore = create<GameStore>((set, get) => ({
           steps_taken: 0,
           zone_cleared: false,
           chapter: save.chapter + 1,
+          resources: newResources,
         };
         await SaveService.checkpoint(save.id, updates);
         set(state => ({ save: state.save ? { ...state.save, ...updates } : null }));
-        return { zoneCleared: true, newZoneId: nextZone.id };
+        return { zoneCleared: true, newZoneId: nextZone.id, coinsGained: coinsGain, fluidGained: fluidGain };
       } else {
         // Final zone
-        await SaveService.checkpoint(save.id, { zone_cleared: true, steps_taken: newSteps });
-        set(state => ({ save: state.save ? { ...state.save, zone_cleared: true, steps_taken: newSteps } : null }));
-        return { zoneCleared: true, newZoneId: null };
+        const updates = { zone_cleared: true, steps_taken: newSteps, resources: newResources };
+        await SaveService.checkpoint(save.id, updates);
+        set(state => ({ save: state.save ? { ...state.save, ...updates } : null }));
+        return { zoneCleared: true, newZoneId: null, coinsGained: coinsGain, fluidGained: fluidGain };
       }
     }
 
     await SaveService.checkpoint(save.id, { steps_taken: newSteps });
     set(state => ({ save: state.save ? { ...state.save, steps_taken: newSteps } : null }));
-    return { zoneCleared: false, newZoneId: null };
+    return { zoneCleared: false, newZoneId: null, coinsGained: 0, fluidGained: 0 };
   },
 
   async setFieldAmulet(pos, amuletId) {

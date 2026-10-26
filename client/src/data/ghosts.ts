@@ -121,6 +121,79 @@ export const GHOST_REG: Record<string, GhostDef> = {
     ],
     lore: 'แม่ผีผู้ยิ่งใหญ่แห่งป่าช้า ความตายหยุดไม่ได้ถ้าเธอยังอยู่',
   },
+  // ── องค์กร: กรมสรรพอาคม ──────────────────────────────────────
+  scoutBull: {
+    id: 'scoutBull', name: 'Scout Bull', nameTh: 'ควายธนูตรวจการ',
+    element: 'earth', classType: 'tank', rarity: 'common', emoji: '🐂',
+    baseStats: { hp: 380, str: 32, mag: 15, def: 42, spr: 22, spd: 22 },
+    skills: [
+      { id: 'bull_slam', name: 'พุ่งชน', type: 'physical', power: 85, gutsCost: 0, cooldown: 0, desc: 'ชนกระแทกเป้าหมาย' },
+      { id: 'bull_patrol', name: 'ตรวจการกระแทก', type: 'physical', power: 140, gutsCost: 65, cooldown: 4, desc: 'พุ่งชนรุนแรงและสตั๊น 1 วิ' },
+    ],
+    lore: 'หุ่นยนต์ควายธนูลาดตระเวนติดรหัสพัสดุราชการ ทนทานและบุกทะลวงเปิดทาง',
+  },
+  occultMarksman: {
+    id: 'occultMarksman', name: 'Occult Marksman', nameTh: 'จ่าอาคม',
+    element: 'metal', classType: 'dps', rarity: 'rare', emoji: '🎯',
+    baseStats: { hp: 260, str: 18, mag: 48, def: 24, spr: 34, spd: 34 },
+    skills: [
+      { id: 'sniper_shot', name: 'กระสุนยันต์', type: 'magical', power: 80, gutsCost: 0, cooldown: 0, desc: 'ยิงกระสุนอาคมระยะไกล' },
+      { id: 'sniper_pierce', name: 'กระสุนเจาะเกราะ', type: 'magical', power: 175, gutsCost: 75, cooldown: 4, desc: 'ยิงเจาะเกราะลด DEF ศัตรู 25%' },
+    ],
+    lore: 'เจ้าหน้าที่สไนเปอร์สังกัดกรมฯ บรรจุกระสุนลงอักขระเจาะอาคมความเร็วสูง',
+  },
+  // ── องค์กร: แก๊งศิษย์วัด ─────────────────────────────────────
+  watBoyJuk: {
+    id: 'watBoyJuk', name: 'Wat Boy Juk', nameTh: 'ไอ้จุกศิษย์วัด',
+    element: 'wood', classType: 'dps', rarity: 'common', emoji: '👦',
+    baseStats: { hp: 280, str: 20, mag: 36, def: 20, spr: 25, spd: 36 },
+    skills: [
+      { id: 'juk_stone', name: 'ดีดหิน', type: 'magical', power: 75, gutsCost: 0, cooldown: 0, desc: 'ดีดกระสุนหินก่อกวน' },
+      { id: 'juk_slingshot', name: 'หนังสติ๊กอาคม', type: 'magical', power: 150, gutsCost: 60, cooldown: 3, desc: 'ยิงก้อนกรวดเสกลดความเร็วและสับสน' },
+    ],
+    lore: 'วิญญาณเด็กวัดขี้เล่นถือหนังสติ๊กคู่ใจ ยิงแม่นและกวนประสาทศัตรู',
+  },
+  kongGhostArm: {
+    id: 'kongGhostArm', name: 'Kong Ghost Arm', nameTh: 'ไอ้ก้อง',
+    element: 'fire', classType: 'berserker', rarity: 'legendary', emoji: '🦾',
+    baseStats: { hp: 550, str: 62, mag: 25, def: 38, spr: 28, spd: 32 },
+    skills: [
+      { id: 'kong_punch', name: 'หมัดอสูร', type: 'physical', power: 105, gutsCost: 0, cooldown: 0, desc: 'ชกหมัดอาคมหนักหน่วง' },
+      { id: 'kong_burst', name: 'หมัดระเบิดวิญญาณ', type: 'physical', power: 260, gutsCost: 85, cooldown: 4, desc: 'ระเบิดพลังหมัดคลื่นกระแทก คริติคอลรุนแรง' },
+    ],
+    lore: 'วิญญาณอสูรที่สิงในแขนขวาของเก่ง พลังทำลายล้างมหาศาลยิ่งต่อสู้ยิ่งดุเดือด',
+  },
+  // ── องค์กร: เครือข่ายใยเงิน ────────────────────────────────────
+  silverMarionette: {
+    id: 'silverMarionette', name: 'Silver Marionette', nameTh: 'หุ่นเชิดเข็มเงิน',
+    element: 'metal', classType: 'mage', rarity: 'common', emoji: '🪆',
+    baseStats: { hp: 240, str: 15, mag: 42, def: 20, spr: 35, spd: 38 },
+    skills: [
+      { id: 'needle_dart', name: 'ซัดเข็ม', type: 'magical', power: 75, gutsCost: 0, cooldown: 0, desc: 'ซัดเข็มเงินเจาะจิต' },
+      { id: 'needle_barrage', name: 'พายุเข็มเงิน', type: 'magical', power: 160, gutsCost: 65, cooldown: 3, desc: 'ระดมยิงเข็มเงินทะลุการป้องกัน' },
+    ],
+    lore: 'หุ่นกลจักรไร้หน้าเคลื่อนไหวด้วยเส้นใยสังเคราะห์ ซัดเข็มเงินตัดขั้วพลังงาน',
+  },
+  wireArachnid: {
+    id: 'wireArachnid', name: 'Wire Arachnid', nameTh: 'แมงมุมใยสังเคราะห์',
+    element: 'metal', classType: 'tank', rarity: 'uncommon', emoji: '🕷️',
+    baseStats: { hp: 360, str: 30, mag: 24, def: 38, spr: 30, spd: 26 },
+    skills: [
+      { id: 'arachnid_bite', name: 'เขี้ยวกล', type: 'physical', power: 80, gutsCost: 0, cooldown: 0, desc: 'กัดด้วยเขี้ยวโลหะ' },
+      { id: 'wire_trap', name: 'กับดักใยเงิน', type: 'debuff', power: 0, gutsCost: 70, cooldown: 4, desc: 'พ่นใยไฟฟ้าสตั๊นเป้าหมาย 1 วิ และลด ATK' },
+    ],
+    lore: 'จักรกลแมงมุมลาดตระเวน ปล่อยตาข่ายลวดนำไฟฟ้าเพื่อตรึงเป้าหมาย',
+  },
+  silverParagon: {
+    id: 'silverParagon', name: 'Silver Paragon', nameTh: 'ทูตใยเงิน',
+    element: 'metal', classType: 'healer', rarity: 'legendary', emoji: '🪞',
+    baseStats: { hp: 460, str: 28, mag: 55, def: 36, spr: 52, spd: 30 },
+    skills: [
+      { id: 'paragon_pulse', name: 'คลื่นสะท้อน', type: 'magical', power: 70, gutsCost: 0, cooldown: 0, desc: 'คลื่นพลังงานสังเคราะห์' },
+      { id: 'paragon_aegis', name: 'เกราะกระจกใยเงิน', type: 'buff', power: 0, gutsCost: 90, cooldown: 6, desc: 'สร้างม่านบาเรีย 35% Max HP ให้ทั้งทีมและล้างดีบัฟ' },
+    ],
+    lore: 'หุ่นพยนต์ระดับสูงขับเคลื่อนด้วยคอร์ผลึกพลังงานนอกโลก กางม่านสะท้อนการโจมตี',
+  },
 };
 
 export const ELEMENT_CHART: Record<string, Record<string, number>> = {

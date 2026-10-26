@@ -42,20 +42,27 @@ const CONFIGS: Record<string, SpriteConfig> = {
 // Map ghost_type → sprite key (prototype: 3 sprites cover 12 ghosts)
 const GHOST_SPRITE: Record<string, string> = {
   // cute / healer / nature
-  kumantong:   'pink_monster',
-  nangTani:    'pink_monster',
-  motherSpirit:'pink_monster',
-  maeNak:      'pink_monster',
-  // dark / mage / debuffer
-  krasue:      'owlet_monster',
-  pret:        'owlet_monster',
-  kalakinee:   'owlet_monster',
-  // fighters / bosses
-  pob:         'dude_monster',
-  phiDib:      'dude_monster',
-  pisaj:       'dude_monster',
-  phiTaiHong:  'dude_monster',
-  asurakay:    'dude_monster',
+  kumantong:        'pink_monster',
+  nangTani:         'pink_monster',
+  motherSpirit:     'pink_monster',
+  maeNak:           'pink_monster',
+  silverParagon:    'pink_monster',
+  // dark / mage / debuffer / ranged
+  krasue:           'owlet_monster',
+  pret:             'owlet_monster',
+  kalakinee:        'owlet_monster',
+  occultMarksman:   'owlet_monster',
+  watBoyJuk:        'owlet_monster',
+  silverMarionette: 'owlet_monster',
+  // fighters / bosses / tanks
+  pob:              'dude_monster',
+  phiDib:           'dude_monster',
+  pisaj:            'dude_monster',
+  phiTaiHong:       'dude_monster',
+  asurakay:         'dude_monster',
+  scoutBull:        'dude_monster',
+  kongGhostArm:     'dude_monster',
+  wireArachnid:     'dude_monster',
 };
 
 export type AnimState = 'idle' | 'attack' | 'hurt' | 'death';

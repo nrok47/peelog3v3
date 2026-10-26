@@ -17,33 +17,33 @@ export interface ZoneDef {
 export const ZONE_DEFS: ZoneDef[] = [
   {
     id: 'zone_01', name: 'ป่าผีสิง', icon: '🌲', chapter: 1, steps: 5,
-    desc: 'ป่าลึกเต็มไปด้วยวิญญาณ',
-    enemies: ['pob', 'phiDib', 'krasue'], levelRange: [3, 6],
-    bossTypes: ['krasue', 'phiDib', 'pob'], bossLevel: 7,
+    desc: 'ป่าลึกเต็มไปด้วยวิญญาณและลาดตระเวน',
+    enemies: ['pob', 'phiDib', 'scoutBull', 'watBoyJuk'], levelRange: [3, 6],
+    bossTypes: ['krasue', 'phiDib', 'scoutBull'], bossLevel: 7,
   },
   {
     id: 'zone_02', name: 'วัดร้าง', icon: '⛩️', chapter: 2, steps: 5,
-    desc: 'วัดเก่าแก่ที่มีพลังมืดแฝงอยู่',
-    enemies: ['kumantong', 'nangTani', 'pret'], levelRange: [8, 11],
-    bossTypes: ['nangTani', 'pret', 'kumantong'], bossLevel: 12,
+    desc: 'วัดเก่าแก่ที่มีพลังมืดและหุ่นยนต์ใยเงินแฝงอยู่',
+    enemies: ['kumantong', 'nangTani', 'pret', 'silverMarionette', 'wireArachnid'], levelRange: [8, 11],
+    bossTypes: ['nangTani', 'wireArachnid', 'kumantong'], bossLevel: 12,
   },
   {
     id: 'zone_03', name: 'บึงสาปมรณะ', icon: '🌊', chapter: 3, steps: 5,
-    desc: 'น้ำดำเต็มไปด้วยวิญญาณจมน้ำ',
-    enemies: ['maeNak', 'kalakinee', 'krasue'], levelRange: [13, 16],
-    bossTypes: ['maeNak', 'kalakinee', 'pisaj'], bossLevel: 17,
+    desc: 'น้ำดำเต็มไปด้วยวิญญาณจมน้ำและหน่วยซุ่มยิง',
+    enemies: ['maeNak', 'kalakinee', 'krasue', 'occultMarksman'], levelRange: [13, 16],
+    bossTypes: ['maeNak', 'occultMarksman', 'kalakinee'], bossLevel: 17,
   },
   {
     id: 'zone_04', name: 'ป่าช้าโบราณ', icon: '💀', chapter: 4, steps: 5,
-    desc: 'ป่าช้าเก่าแก่ อาณาจักรของเปรต',
-    enemies: ['pisaj', 'phiTaiHong', 'pret'], levelRange: [18, 22],
-    bossTypes: ['phiTaiHong', 'pisaj', 'kalakinee'], bossLevel: 23,
+    desc: 'ป่าช้าเก่าแก่ อาณาจักรของเปรตและอสูรคลั่ง',
+    enemies: ['pisaj', 'phiTaiHong', 'pret', 'kongGhostArm'], levelRange: [18, 22],
+    bossTypes: ['phiTaiHong', 'kongGhostArm', 'pisaj'], bossLevel: 23,
   },
   {
     id: 'zone_05', name: 'เมืองล่างดิน', icon: '🗿', chapter: 5, steps: 5,
-    desc: 'โลกใต้ดิน บ้านของอสุรกาย',
-    enemies: ['asurakay', 'motherSpirit', 'phiTaiHong'], levelRange: [23, 28],
-    bossTypes: ['asurakay', 'motherSpirit'], bossLevel: 30,
+    desc: 'โลกใต้ดิน บ้านของอสุรกายและทูตจักรกลระดับสูง',
+    enemies: ['asurakay', 'motherSpirit', 'silverParagon', 'phiTaiHong'], levelRange: [23, 28],
+    bossTypes: ['asurakay', 'silverParagon', 'motherSpirit'], bossLevel: 30,
   },
 ];
 

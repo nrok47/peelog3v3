@@ -22,6 +22,7 @@ interface Session {
   corruptionGain:  number;
   activeBoons:     string[];
   log:             LogLine[];
+  bossWon:         boolean;
 }
 
 interface BoonDef { id: string; name: string; icon: string; desc: string; chapterReq?: number }
@@ -238,7 +239,7 @@ export default function Adventure() {
     const steps = RUN_STEPS[runLength];
     const init: Session = {
       phase: 'walking', step: 0, maxSteps: steps,
-      hpPct: 100, dustEarned: 0, expEarned: 0, bondEarned: 0, corruptionGain: 0,
+      hpPct: 100, dustEarned: 0, expEarned: 0, bondEarned: 0, corruptionGain: 0, bossWon: false,
       activeBoons: [],
       log: [{ text: `🗺️  ออกเดินทางสู่ ${zone.name}... (${steps} ก้าว)`, color: '#7dd3fc' }],
     };
@@ -287,6 +288,7 @@ export default function Adventure() {
         dustEarned: s.dustEarned + dustReward,
         expEarned:  s.expEarned  + expReward,
         bondEarned: s.bondEarned + bondReward,
+        bossWon: true,
         log: [...s.log, ...bossLines],
       });
     } else {
@@ -308,9 +310,13 @@ export default function Adventure() {
     setSaving(true);
     try {
       // Apply dust + corruption + bond via existing action
+      // บอส Adventure = จุด "หา" ของ coins/necro_fluid (รางวัลระดับบอสเท่านั้น ของหายากจริง)
+      const coinsGain = s.bossWon ? Math.floor(zone.bossLevel * 2) : 0;
+      const fluidGain = s.bossWon ? 1 : 0;
       await applyAdventureChoice(
         'adv_run', s.phase,
         s.corruptionGain, s.dustEarned, s.bondEarned,
+        coinsGain, fluidGain,
       );
       // Apply EXP to team ghosts via battle rewards pattern
       if (s.expEarned > 0 && team.length > 0) {
@@ -656,6 +662,10 @@ export default function Adventure() {
                 { icon: '⚡', label: 'EXP ทีม',       val: `+${session.expEarned}`,      color: 'var(--green)' },
                 { icon: '💞', label: 'Bond ทีม',       val: `+${session.bondEarned}`,     color: '#a78bfa' },
                 { icon: '☠️', label: 'Corruption',     val: `+${session.corruptionGain}`, color: session.corruptionGain > 0 ? 'var(--red)' : 'var(--green)' },
+                ...(session.bossWon ? [
+                  { icon: '🪙', label: 'เหรียญผี',      val: `+${Math.floor(zone.bossLevel * 2)}`, color: 'var(--gold)' },
+                  { icon: '🧪', label: 'น้ำสาปหายาก',   val: '+1', color: '#c084fc' },
+                ] : []),
               ].map(r => (
                 <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                   <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{r.icon} {r.label}</span>
