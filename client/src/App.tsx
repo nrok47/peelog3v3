@@ -13,6 +13,7 @@ import Arena            from './screens/Arena';
 import Adventure        from './screens/Adventure';
 import ElementCodex     from './screens/ElementCodex';
 import CorruptionEnding from './screens/CorruptionEnding';
+import GuildScreen      from './screens/GuildScreen';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuth, isLoading } = useGameStore();
@@ -49,6 +50,7 @@ export default function App() {
           <Route path="/adventure"  element={<ProtectedRoute><Adventure /></ProtectedRoute>} />
           <Route path="/codex"      element={<ProtectedRoute><ElementCodex /></ProtectedRoute>} />
           <Route path="/ending"     element={<ProtectedRoute><CorruptionEnding /></ProtectedRoute>} />
+          <Route path="/guild"      element={<ProtectedRoute><GuildScreen /></ProtectedRoute>} />
 
           <Route path="*"           element={<Navigate to="/login" replace />} />
         </Routes>

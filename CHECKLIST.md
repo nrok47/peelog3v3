@@ -1,261 +1,173 @@
 # Spirit Master — Feature Checklist
-## สถานะระบบทั้งหมด · อัปเดต: 2026-05-23
+## สถานะระบบทั้งหมด · อัปเดต: 2026-06-18 (ตรวจจาก source code จริงใน `client/src/`, ไม่ใช่จากคำอธิบายเก่า)
 
-Legend: ✅ Done · 🔄 Partial · ⬜ Todo · 🚫 Blocked by dependency
+> ฉบับนี้แทนทั้ง CHECKLIST.md เดิม (2026-05-23) และ Roadmap ใน CLAUDE.md (2026-05-24) — ทั้งสองไฟล์ตามหลังโค้ดจริงไปไกลมาก (มี commit feature ใหม่ๆ ทับไปแล้ว 30+ ครั้งหลังจากนั้น) ตรวจซ้ำได้จาก `git log` + อ่านโค้ดใน `client/src/screens/*.tsx`, `store/gameStore.ts`
+
+Legend: ✅ Done (เห็นโค้ด wiring จริง) · 🟡 Partial (UI/logic มีบางส่วน) · ⬜ Todo · — ไม่ได้ตรวจ
+
+---
+
+## ⚠️ สิ่งสำคัญที่ต้องรู้ก่อนอ่านต่อ
+
+1. **โปรเจคจริงอยู่ที่ `client/` เท่านั้น** (Vite + React + TS + Zustand) — ไฟล์ `.jsx` ที่ root (`battle-live.jsx`, `roster-live.jsx` ฯลฯ) เป็น prototype เก่า**ไม่ถูกใช้แล้ว**
+2. ~~`Forge.tsx` / `SkillTree.tsx` / `Amulet.tsx` / `Evolution.tsx` เป็น dead code~~ — **ลบแล้ว 2026-06-18** (ยืนยันไม่มี import เหลือ + build ผ่าน)
+3. Routes จริงทั้งหมด (จาก `App.tsx`): `/login /home /battle /roster /spirit/:id /map /upgrade /arena /adventure /codex /ending /guild`
+4. **`db/migrate-guild.sql` ยังไม่ได้รันใน Supabase จริง** — ต้องไปรันใน Supabase Dashboard → SQL Editor ก่อน guild feature จะใช้งานได้ (ตาราง `guilds`/`guild_members` ยังไม่มีถ้ายังไม่รัน)
 
 ---
 
 ## 🏗 Infrastructure
 
-- [x] ✅ Supabase project setup (miffompdtiasgssndayp)
-- [x] ✅ DB Schema: players, ghosts, saves, leaderboard
-- [x] ✅ Row Level Security (RLS) ทุก table
-- [x] ✅ supabase.js client (Auth + GhostService + SaveService + Leaderboard)
-- [x] ✅ game-state.js (window.GS singleton)
-- [x] ✅ ghost-data.js (GHOST_REG — 12 ผี)
-- [x] ✅ seed.js (browser seed — 1 player + 5 ghosts + 10 items)
-- [x] ✅ seed.sql (SQL seed for Supabase SQL Editor)
-- [x] ✅ XAMPP localhost serve
+- [x] ✅ Supabase project (auth + DB + RLS)
+- [x] ✅ Zustand store (`gameStore.ts`) — action ครบ: loadAll, signIn/Up/Out, updateGhost, setTeam, summonGhost, addBattleRewards, applyAdventureChoice, advanceZoneStep, setFieldAmulet, submitArenaScore, saveDefenseTeam, loadGuild/createGuild/joinGuild/leaveGuild
+- [x] ✅ GitHub Actions CI/CD → deploy GitHub Pages (`https://nrok47.github.io/peelog3v3/`)
+- [x] ✅ HashRouter (รองรับ GitHub Pages ไม่ต้อง 404.html hack)
 
 ---
 
-## 🔐 Auth System
+## 🔐 Auth + Onboarding
 
-- [x] ✅ Login screen UI (dark fantasy style)
-- [x] ✅ Register screen UI
-- [x] ✅ signIn / signUp / signOut
-- [x] ✅ Auto session restore (refresh หน้าแล้วยัง login อยู่)
-- [x] ✅ Auth state machine: loading → login → game
-- [ ] ⬜ Guest mode (ไม่ต้องสมัครเล่น demo ได้)
-- [ ] ⬜ Social login (Google / Line)
-- [ ] ⬜ Forgot password UI
+- [x] ✅ Sign in / Sign up / Sign out
+- [x] ✅ Starter ghost อัตโนมัติให้ player ใหม่ (random common)
+- [x] ✅ Session persist ผ่าน Supabase Auth
+- [ ] ⬜ Guest mode
+- [ ] ⬜ Social login
 
 ---
 
-## 🎮 Game Shell (game.html)
+## 🎮 Gacha / Roster
 
-- [x] ✅ PlayerHUD (ชื่อ, Spirit Dust, Corruption bar) — live จาก GS
-- [x] ✅ Bottom nav (5 ปุ่มหลัก)
-- [x] ✅ Dev bar (toggle, switch screen, logout)
-- [x] ✅ goTo(screenId) — global navigation
-- [x] ✅ goTo(screenId, { ghostId }) — navigation with params
-- [x] ✅ Error boundary (ป้องกัน crash ทั้งหน้า)
-- [x] ✅ Loading state per screen (React.Suspense)
-- [x] ✅ Back navigation stack (goBack())
+- [x] ✅ 3-pool summon (basic/premium/festival) + rarity table จริง
+- [x] ✅ Innate affix ติดผีตอน summon ตาม rarity (legendary/rare/uncommon 20%)
+- [x] ✅ Roster filter/sort (level, bond, element, rarity), EXP bar, stat_points alert
+- [x] ✅ Spend dust จริงผ่าน `spendDust()` (ตัด DB จริง ไม่ใช่แค่เช็ค)
 
 ---
 
-## ⚔️ Battle System
+## ⚔️ Battle System (`Battle.tsx`, 1196 บรรทัด — ใหญ่สุดในโปรเจค)
 
-### Battle Engine (battle_engine.js)
-- [x] ✅ ATB loop (tick 100ms, fill = spd / ATB_K)
-- [x] ✅ GUTS accumulation (per tick)
-- [x] ✅ Bond-based AI (< 50 random, 50-79 class, 80+ smart)
-- [x] ✅ Damage formula (str/mag × power × elemMod / def)
-- [x] ✅ Element multipliers (±33%)
-- [x] ✅ Skill types: physical, magical, heal, heal_all, drain, revive, buff, debuff, aoe
-- [x] ✅ Status effects: burn, slow, taunt, atk_down, rage
-- [x] ✅ DoT (burn dot per tick)
-- [x] ✅ Win/lose detection
-- [ ] ⬜ Critical hit system (secStats.crit)
+- [x] ✅ ATB loop (100ms tick), GUTS, bond-based AI (random/class/smart)
+- [x] ✅ Damage formula + element multiplier (ตรงตาม ELEMENT_CHART)
+- [x] ✅ **Final stats รวม Frame DEF/SPR + Spirit Mass affixes + Skill Tree nodes + Field Amulet เข้า combat จริง** (เดิม checklist บอกว่ายังไม่ wire — ตอนนี้ wire แล้วทุกระบบ)
+- [x] ✅ Critical hit (ผ่าน skill node `'crit'` ใน skill tree — ไม่ใช่ stat อิสระ)
+- [x] ✅ Battle Rewards: EXP + level up + stat_points +3/level + bond +2 + dust reward (`addBattleRewards`)
+- [x] ✅ Enemy scaling ตาม zone/boss level (`buildZoneEnemies` ใน `data/zones.ts`)
+- [x] ✅ Attack animation (projectile orb + card flash) + animated sprite (prototype 3 ตัว)
+- [x] ✅ Speed selector x1/x2/x3/x4, Flee button (มี confirm)
+- [x] ✅ Team select 1-3 ตัว (ไม่บังคับครบทีม 3)
 - [ ] ⬜ Dodge/Accuracy check
-- [ ] ⬜ Taunt logic (force target)
-- [ ] ⬜ Wave system (enemy respawn)
-
-### Battle Screen (battle-live.jsx)
-- [x] ✅ Player team จาก GS.team (live DB)
-- [x] ✅ Enemy team จาก chapter (scripted per chapter 1-4)
-- [x] ✅ Live HP/ATB/GUTS bars (update ทุก 100ms)
-- [x] ✅ Status effects display
-- [x] ✅ Battle log (last 3 actions)
-- [x] ✅ Pause/Resume button
-- [x] ✅ Win → save Bond +5, chapter_step +1 to DB
-- [x] ✅ Lose → show retry screen
-- [x] ✅ Corruption display (live จาก GS.save)
-- [ ] ⬜ Manual skill override (tap skill → execute)
-- [ ] ⬜ Target selection UI (tap enemy card)
-- [ ] ⬜ Battle entry animation
-- [ ] ⬜ Skill animations (flash, damage pop)
-- [ ] ⬜ Sound effects
+- [ ] ⬜ Taunt force-target logic
+- [ ] ⬜ Wave system (enemy respawn ระหว่าง battle)
 
 ---
 
-## 👻 Ghost Roster (roster-live.jsx) ✅ Phase 1 DONE
+## 🌿 Adventure (`Adventure.tsx`, 797 บรรทัด — รีไรท์ทั้งยวง 2026-05-25)
 
-- [x] ✅ UI design (filter tabs, team slots, grid)
-- [x] ✅ Load ghosts จาก GS.ghosts (live)
-- [x] ✅ Filter by element
-- [x] ✅ Set team (tap ghost → assign slot → GhostService.setTeam())
-- [ ] ⬜ Sort by level/bond/power
-- [x] ✅ Tap ghost → goTo('detail', { ghostId })
-
----
-
-## 🔍 Spirit Detail (spirit-detail-live.jsx) ✅ Phase 1 DONE
-
-- [x] ✅ UI design (stats, frame, affixes, skills)
-- [x] ✅ Receive ghostId param จาก goTo()
-- [x] ✅ Load ghost data จาก GS.ghosts
-- [x] ✅ Show real stats (level, bond, corruption)
-- [x] ✅ Quick nav → Forge / Skill Tree / Amulet / Evolution
-- [x] ✅ Bond + Corruption progress bars
+- [x] ✅ "Capybara Go!" style auto-walk loop (ไม่ใช่ scripted choice เดิมแล้ว)
+- [x] ✅ Choice outcome → `applyAdventureChoice()` → corruption delta + dust + bond บันทึกจริงลง DB
+- [x] ✅ Speed selector, pause, run-length picker, difficulty indicator
+- [x] ✅ Event gating ตาม chapter/corruption threshold — wired แล้ว 2026-06-18 (boon ขั้นสูง 3 ตัวล็อคด้วย `chapterReq` 2-3, Hazard โหดขึ้นเมื่อ corruption≥50 — "corruption spiral")
+- [ ] ⬜ Mentor encounter / mentor bond system (mentor_bonds field มีใน schema แต่ไม่เจอ UI ใช้งาน)
 
 ---
 
-## ⚒ Forge System (forge.jsx)
+## 🗺 Map / Zone System (`Map.tsx` + `data/zones.ts`)
 
-### Frame Enhancement
-- [x] ✅ UI design (+12→+13, success rate curve) — hardcoded krasue
-- [ ] ⬜ Load selected ghost frame data จาก GS
-- [ ] ⬜ Enhance button → GhostService.enhanceFrame()
-- [ ] ⬜ Success/fail animation
-- [ ] ⬜ Protection amulet (ยันต์กันแตก) consumption
-- [ ] ⬜ Save result to DB
-
-### Mass Reroll (PoE Affixes)
-- [x] ✅ UI design (affix tiers, reroll button) — hardcoded
-- [ ] ⬜ Load selected ghost spirit_mass จาก GS
-- [ ] ⬜ Reroll → random new affixes ตาม AFFIX_TABLE
-- [ ] ⬜ Consume ผงอาถรรพ์ from inventory
-- [ ] ⬜ Save new affixes to DB
+- [x] ✅ 5 zones จริง (ป่าผีสิง→วัดร้าง→บึงสาปมรณะ→ป่าช้าโบราณ→เมืองล่างดิน), 5 steps/zone, boss ทุกโซน
+- [x] ✅ Zone unlock + chapter advance ผ่าน `advanceZoneStep()` (เรียกจาก Battle.tsx ตอนชนะ)
+- [x] ✅ Boss battle = step สุดท้ายของโซน (enemy pool พิเศษ + level สูงกว่า)
+- [x] ✅ Steps tracker แสดงผลใน Map.tsx (locked/current/cleared state)
 
 ---
 
-## 🌳 Skill Tree (skill-tree.jsx)
+## 🛠 Upgrade Screen (`Upgrade.tsx`, 511 บรรทัด — รวม 4 ระบบเดิม)
 
-- [x] ✅ UI design (yantra tree, 3 branches, keystone) — hardcoded
-- [x] ✅ Node types: minor/notable/keystone
-- [x] ✅ Visual: taken/available/locked states
-- [ ] ⬜ Load selected ghost skill_tree จาก GS
-- [ ] ⬜ Invest point → update GS + save to DB
-- [ ] ⬜ Refund points (consume item)
-- [ ] ⬜ Apply node bonuses to battle stats
-- [ ] ⬜ Validate path (can't unlock locked node)
+### Forge (Frame + Mass)
+- [x] ✅ Frame enhancement → +DEF/+SPR สะสม, cost เพิ่มตามระดับ, ตัด dust จริง
+- [x] ✅ Mass reroll → affix pool สุ่ม 2-3 ชิ้น, ตัด dust จริง, ผลไป apply ใน Battle.tsx จริง (เดิม checklist บอก "AFFIX_TABLE ยังไม่ define" — ผิดแล้ว มีและ wire ครบ)
 
----
+### Skill Tree
+- [x] ✅ 40 nodes, 4 branches, tier system
+- [x] ✅ Save unlocked nodes ลง `ghost.skill_tree` (JSONB) จริง
+- [x] ✅ Apply node bonus เข้า battle จริง (เช่น crit node)
+- [x] ✅ stat_points หักตอนปลดล็อค, ได้จาก level up
 
-## 💎 Amulet Slots (amulet.jsx)
+### Amulet
+- [x] ✅ Field slot system (1 slot/ช่อง แทนติดตัวละคร) ผ่าน `setFieldAmulet()`
+- [x] ✅ Apply field amulet เข้า battle stats จริง
 
-- [x] ✅ UI design (4 slots, inventory grid, replace preview) — hardcoded
-- [ ] ⬜ Load ghost amulet_slots จาก GS
-- [ ] ⬜ Load inventory items จาก GS.inventory
-- [ ] ⬜ Equip amulet → update ghost.amulet_slots + save to DB
-- [ ] ⬜ Unequip → return to inventory
-- [ ] ⬜ Filter inventory by slot type (active/passive/utility)
+### Evolution
+- [x] ✅ 3-stage (base→evolved→mythic), level+dust requirement, stat scale ผ่าน `evo_stage`
+- [x] ✅ Visual: evo ring สี/glow ใน `Chibi.tsx` (รับ `evoStage` prop)
 
 ---
 
-## 🐉 Evolution System (evolution.jsx)
+## 🏆 Arena / PvP (`Arena.tsx`, 222 บรรทัด — ระบบใหม่ ไม่อยู่ใน roadmap เดิมเลย)
 
-- [x] ✅ UI design (3-stage: base → evolved → mythic) — hardcoded krasue
-- [x] ✅ Stat preview (before/after comparison bars)
-- [x] ✅ Materials display
-- [x] ✅ Corruption warning (+10 per evo)
-- [ ] ⬜ Load selected ghost evo_stage จาก GS
-- [ ] ⬜ Check materials (ดวงตาคนตาย etc.) in inventory
-- [ ] ⬜ Evolve button → GhostService.evolve() + corruption +10
-- [ ] ⬜ Unlock new skills on evo
-
----
-
-## 🌿 Adventure System (adventure.jsx)
-
-- [x] ✅ UI design (scene frame, choice buttons, text) — hardcoded
-- [ ] ⬜ Load chapter/zone จาก GS.save
-- [ ] ⬜ Random event picker (ตาม zone type)
-- [ ] ⬜ Choice tap → SaveService.addDecision() + corruption delta
-- [ ] ⬜ Mentor encounter → updateMentorBond()
-- [ ] ⬜ Battle trigger (เดิน N ก้าว → goTo('battle'))
-- [ ] ⬜ Resource reward (coins, items)
-- [ ] ⬜ Twine story fragment injection
+- [x] ✅ Async PvP (Defense Team Payload) — ไม่ใช่ live matchmaking โดยตั้งใจ
+- [x] ✅ Defense team save (`saveDefenseTeam`)
+- [x] ✅ Leaderboard จริงจาก Supabase (top 10 + ตำแหน่งตัวเอง) ผ่าน `LeaderboardService`
+- [x] ✅ Score submission (`submitArenaScore`) เรียกจาก Battle.tsx ตอนจบ PvP
+- [x] ✅ Rank tier display (ไอคอน/สีตามคะแนน)
+- [x] ✅ Season ranking — wired แล้ว 2026-06-19: `lib/season.ts` คำนวณ season id จากปี-เดือนปัจจุบัน (`YYYY-MM`) หมุนรายเดือนอัตโนมัติ แทน hardcode `'2026-S1'` ทุกที่ใน `LeaderboardService`, แสดงวันที่เหลือของ season ใน Arena
+- [x] ✅ Guild system V1 — wired แล้ว 2026-06-19: ตาราง `guilds`/`guild_members` (migration `db/migrate-guild.sql` — **ยังไม่รันใน Supabase จริง**), `GuildService` (create/join/leave/roster/guild leaderboard), หน้า `/guild` (สร้าง/เข้าร่วม/ดู roster/ออก), tab "กิลด์" ใน Arena leaderboard + quick-link card
+- [x] ✅ Guild chat — wired แล้ว 2026-06-19: ตาราง `guild_messages` (migration `db/migrate-guild-chat.sql` — **ยังไม่รันใน Supabase จริง**), อ่าน/ส่งจำกัดเฉพาะคนในกิลด์เดียวกัน (RLS), realtime ผ่าน Supabase `postgres_changes` channel (**ต้องเปิด Realtime replication ให้ตาราง `guild_messages` ใน Supabase Dashboard ด้วย ไม่งั้นข้อความใหม่จะไม่เด้งสด ต้อง refresh เอง**), แชทอยู่ในหน้า `/guild`
+  - ไม่มี: guild war, donation/bank, kick member, leadership transfer, แก้/ลบข้อความ, rate limit การส่ง — known gap ทำทีหลังถ้าจำเป็น
 
 ---
 
-## 🗺 Roguelike Map (map-live.jsx) ✅ Phase 1 DONE
+## 🔮 Corruption Ending (`CorruptionEnding.tsx`, 213 บรรทัด)
 
-- [x] ✅ UI design (SVG node graph, paths, zones)
-- [x] ✅ Load zone_id + steps_taken จาก GS.save
-- [x] ✅ Node tap → goTo('adventure')
-- [x] ✅ Show cleared/current/locked node states
-- [x] ✅ Show mentor bonds
-- [ ] ⬜ Advance zone (steps_taken ++)
-- [ ] ⬜ Zone clear → unlock next zone
-- [ ] ⬜ Boss node (every 10 steps)
+- [x] ✅ 4 endings, unlock condition ตาม corruption score (อ่านจาก `save.corruption_score` live)
+- [x] ✅ Decision log อ่านจาก `save.decisions[]` จริง (ไม่ hardcode)
+- [x] ✅ Highlight ending ปัจจุบันอัตโนมัติ
+- [x] ✅ Leaderboard submission ตอนจบเกม — wired แล้ว 2026-06-18 (`handleSubmit` → `submitArenaScore`, score = chapter×100 + avgBond×5 + ghosts.length×20, มี loading/submitted state)
+- [ ] ⬜ New Game+ — ไม่มีโค้ดเลย (grep ทั้ง repo ไม่เจอ)
 
 ---
 
-## 🔮 Corruption Ending (corruption-ending.jsx) ✅ Phase 1 DONE
+## 📖 Element Codex
 
-- [x] ✅ UI design (4 endings, decision log, rewards)
-- [x] ✅ Read corruption_score จาก GS.save (live)
-- [x] ✅ Read decisions[] จาก GS.save (real decisions)
-- [x] ✅ Read mentor_bonds จาก GS.save
-- [x] ✅ Highlight correct ending path (auto by corruption%)
-- [x] ✅ Unlock conditions check (True End: corruption≤20 + all bonds≥60)
-- [ ] ⬜ Submit to leaderboard on ending view
+- [x] ✅ Static content ครบ (ไม่ต้อง DB ตามดีไซน์)
 
 ---
 
-## 📖 Element Codex (element-codex.jsx)
+## 🧹 Technical Debt (ยืนยันจากโค้ดจริง)
 
-- [x] ✅ Element chart display
-- [x] ✅ Damage formula display
-- [x] ✅ Tier/affix reference
-- [x] ✅ Static content — no DB needed ✓
-
----
-
-## 🔐 Phase 4 — Story (Not Started)
-
-- [ ] ⬜ Mentor dialogue screen (4 อาจารย์: พระ/ชี/หมอผีจีน/หมอผีฝรั่ง)
-- [ ] ⬜ Branching dialogue → affect bond/corruption
-- [ ] ⬜ Chapter 1-4 story nodes
-- [ ] ⬜ True/Good/Bad/Neutral ending unlock conditions
-- [ ] ⬜ Twine story integration
+- [ ] ⬜ **ลบไฟล์ตาย 4 ไฟล์**: `screens/Forge.tsx`, `SkillTree.tsx`, `Amulet.tsx`, `Evolution.tsx` (~920 บรรทัดรวม) — ถูกแทนที่ด้วย `Upgrade.tsx` หมดแล้ว ไม่มี route เรียกใช้
+- [ ] ⬜ ไฟล์ `.jsx` เก่าที่ root ของ `peelog3v3/` (`battle-live.jsx`, `game.html` ฯลฯ) — prototype ก่อน migrate ไป Vite, ไม่ถูกใช้ แต่ยังอยู่ใน repo
+- [ ] ⬜ Bundle size ~535KB (ยังไม่ verify ซ้ำ — ตามที่ CLAUDE.md เคยบันทึกไว้, ควร lazy-import หน้า Battle)
+- [ ] ⬜ `focus_pts` field ใน players table — ยังไม่มีระบบใช้งาน (ตามที่ CLAUDE.md บันทึกไว้, ยังไม่ verify ซ้ำ)
+- [x] ✅ Mobile touch optimization — wired แล้ว 2026-06-18: `viewport-fit=cover`+`user-scalable=no` ใน index.html (เดิม `env(safe-area-inset-bottom)` ใน `.bottom-nav` ไม่ทำงานจริงเพราะขาด `viewport-fit=cover`), `touch-action:manipulation` กันดับเบิลแท็บซูม, `overscroll-behavior-y:none` กัน rubber-band, `-webkit-touch-callout:none`+`user-select:none` บน button/.card/.nav-item/a กัน long-press callout
+- [ ] ⬜ Standalone Inventory screen — ไม่มี route `/inventory`
 
 ---
 
-## 🏆 Endgame / Social (Not Started)
-
-- [ ] ⬜ Leaderboard screen
-- [ ] ⬜ PvP matchmaking (3v3 vs other players)
-- [ ] ⬜ Season ranking
-- [ ] ⬜ Guild system
-
----
-
-## 🛠 Technical Debt
-
-- [x] ✅ goTo() รับ params { ghostId } — DONE
-- [x] ✅ selectedGhostId context — DONE (window.selectedGhostId)
-- [x] ✅ Error boundaries — DONE
-- [ ] ⬜ battle.jsx (old) ยังอยู่ใน codebase — อาจลบออก
-- [ ] ⬜ AFFIX_TABLE ยังไม่ได้ define (reroll ยังไม่ work)
-- [ ] ⬜ Enhancement success rate curve ยังไม่ implement จริง
-- [ ] ⬜ Inventory UI ยังไม่มี standalone screen
-- [ ] ⬜ Mobile touch optimization (pinch, swipe)
-
----
-
-## Progress Summary (อัปเดต 2026-05-23)
+## Progress Summary (ตรวจจาก source 2026-06-18)
 
 ```
-Phase 1 (Core MVP):     20/20 ✅ DONE
-Phase 2 (Depth):         3/22 ✅
-Phase 3 (Endgame):       2/10 ✅
-Phase 4 (Story):         0/5  ⬜
-Infra/Auth/Shell:       18/18 ✅ DONE
+Infra/Auth/Roster:        DONE
+Battle Core + Rewards:    DONE (Sprint 4 เสร็จจริง ตรงข้ามกับที่ roadmap เก่าบอก)
+Adventure:                DONE core loop, ขาด event gating + mentor bond UI
+Map/Zone (Sprint 9):       DONE
+Upgrade (Forge/Skill/      DONE ทั้ง 4 ระบบ wire เข้า battle จริง
+  Amulet/Evo, Sprint 6-8):
+Arena/PvP:                 DONE (ระบบใหม่ทั้งหมด ไม่อยู่ใน roadmap เดิม)
+Ending (Sprint 10):        🟡 เหลือ "submit leaderboard ตอนจบ" + New Game+
 
-Total: ~43/75 features complete (57%)
+สรุป: ระบบเกมเพลย์หลัก (gacha→battle→progression→PvP) จบลูปสมบูรณ์แล้ว
+งานที่เหลือจริงๆมีน้อยกว่าที่ doc เก่าบอกมาก — ส่วนใหญ่เป็น polish/endgame ไม่ใช่ core
 ```
 
-### Phase 1 Files ที่ live แล้ว
+### งานที่เหลือจริง เรียงตามผลกระทบ
 
-| Screen | File | Status |
-| --- | --- | --- |
-| Battle | battle-live.jsx | ✅ GS.team + BattleEngine |
-| Roster | roster-live.jsx | ✅ GS.ghosts + setTeam |
-| Spirit Detail | spirit-detail-live.jsx | ✅ selectedGhostId |
-| Map | map-live.jsx | ✅ GS.save zone/chapter |
-| Corruption Ending | corruption-ending.jsx | ✅ GS.save live |
-| Login | login.jsx | ✅ Supabase Auth |
+```
+✅ 1. ผูก submitArenaScore เข้า CorruptionEnding.tsx          — เสร็จ 2026-06-18
+✅ 2. ลบ 4 ไฟล์ dead code (Forge/SkillTree/Amulet/Evolution)  — เสร็จ 2026-06-18
+✅ 3. Event gating ใน Adventure (chapter boon lock + corruption spiral) — เสร็จ 2026-06-18
+✅ 4. Mobile touch optimization (viewport-fit, touch-action, overscroll, callout) — เสร็จ 2026-06-18
+✅ 5. Season ranking (รายเดือนอัตโนมัติ) + Guild system V1 (create/join/leave/roster/leaderboard) — เสร็จ 2026-06-19
+   ⚠️ ต้องรัน db/migrate-guild.sql ใน Supabase ก่อนใช้งานจริงได้
+
+6. New Game+ (reset save, เก็บ ghosts)
+```

@@ -68,6 +68,16 @@ html, body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
+  touch-action: manipulation;       /* กันดับเบิลแท็บซูมตอนแท็พไวๆ ใน battle */
+  overscroll-behavior-y: none;      /* กัน pull-to-refresh / rubber-band ทั้งหน้าตอน swipe ใน log/list */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ปุ่ม/การ์ดกดได้ — กัน long-press เลือกข้อความ/เด้ง callout เวลาแท็พไวๆ */
+button, .card, .nav-item, a {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 #root {

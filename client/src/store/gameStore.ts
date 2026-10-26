@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import type { Ghost, GameState, Decision } from '../types';
-import { db, Auth, GhostService, SaveService, LeaderboardService } from '../db/supabase';
+import type { Ghost, GameState, Decision, Guild } from '../types';
+import { db, Auth, GhostService, SaveService, LeaderboardService, GuildService } from '../db/supabase';
 import { GHOST_LIST } from '../data/ghosts';
 import { ZONE_DEFS, getZoneIndex } from '../data/zones';
 
@@ -23,6 +23,12 @@ interface GameStore extends GameState {
   saveDefenseTeam: () => Promise<void>;
   passiveDustEarned: number;
   passiveRate: number;        // dust/hour current rate (bond-based)
+  myGuild: Guild | null;
+  myGuildRole: 'leader' | 'member' | null;
+  loadGuild: () => Promise<void>;
+  createGuild: (name: string, tag: string) => Promise<void>;
+  joinGuild: (guildId: string) => Promise<void>;
+  leaveGuild: () => Promise<void>;
 }
 
 const DUST_PER_HOUR = 30;
@@ -42,6 +48,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   isAuth:    false,
   passiveDustEarned: 0,
   passiveRate: 30,
+  myGuild: null,
+  myGuildRole: null,
 
   async loadAll() {
     set({ isLoading: true });
@@ -83,6 +91,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       // ─────────────────────────────────────────────────────────
 
       set({ player, ghosts, team, save, isAuth: true, isLoading: false, passiveDustEarned, passiveRate });
+      get().loadGuild().catch(console.error);
     } catch {
       set({ isLoading: false, isAuth: false });
     }
@@ -297,6 +306,34 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const { player, team } = get();
     if (!player || team.length === 0) return;
     await LeaderboardService.saveDefenseTeam(player.id, player.username, team);
+  },
+
+  async loadGuild() {
+    const { player } = get();
+    if (!player) return;
+    const mine = await GuildService.getMyGuild(player.id);
+    set({ myGuild: mine?.guild ?? null, myGuildRole: mine?.role ?? null });
+  },
+
+  async createGuild(name, tag) {
+    const { player } = get();
+    if (!player) throw new Error('Not logged in');
+    const guild = await GuildService.create(player.id, player.username, name, tag);
+    set({ myGuild: guild, myGuildRole: 'leader' });
+  },
+
+  async joinGuild(guildId) {
+    const { player } = get();
+    if (!player) throw new Error('Not logged in');
+    await GuildService.join(guildId, player.id, player.username);
+    await get().loadGuild();
+  },
+
+  async leaveGuild() {
+    const { player, myGuild } = get();
+    if (!player || !myGuild) return;
+    await GuildService.leave(player.id, myGuild.id);
+    set({ myGuild: null, myGuildRole: null });
   },
 
   async summonGhost(ghostType, cost) {

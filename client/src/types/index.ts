@@ -123,6 +123,29 @@ export interface Save {
   is_active: boolean;
 }
 
+export interface Guild {
+  id: string;
+  name: string;
+  tag: string;
+  leader_id: string | null;
+  created_at: string;
+}
+
+export interface GuildMember {
+  player_id: string;
+  username: string;
+  role: 'leader' | 'member';
+}
+
+export interface GuildMessage {
+  id: string;
+  guild_id: string;
+  player_id: string;
+  username: string;
+  message: string;
+  created_at: string;
+}
+
 export interface GameState {
   player: Player | null;
   ghosts: Ghost[];

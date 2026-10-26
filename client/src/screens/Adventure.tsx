@@ -24,7 +24,7 @@ interface Session {
   log:             LogLine[];
 }
 
-interface BoonDef { id: string; name: string; icon: string; desc: string }
+interface BoonDef { id: string; name: string; icon: string; desc: string; chapterReq?: number }
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 const BASE_TICK_MS = 1700;
@@ -36,10 +36,10 @@ const ALL_BOONS: BoonDef[] = [
   { id: 'earth_shield',  name: 'โล่ผีดิบ',        icon: '🪨', desc: 'ลดดาเมจที่รับ 15%' },
   { id: 'ghost_speed',   name: 'เงาแห่งกระสือ',   icon: '💨', desc: 'ลด HP ที่สูญเสียจาก Combat ลง 50%' },
   { id: 'blood_regen',   name: 'น้ำตาแม่นาค',     icon: '💧', desc: 'ฟื้น HP +8% ทุก 3 ก้าว' },
-  { id: 'crit_yant',     name: 'ยันต์ตาทิพย์',    icon: '✨', desc: 'Combat ชนะ: ได้ฝุ่น 2 เท่า' },
+  { id: 'crit_yant',     name: 'ยันต์ตาทิพย์',    icon: '✨', desc: 'Combat ชนะ: ได้ฝุ่น 2 เท่า', chapterReq: 2 },
   { id: 'dust_bonus',    name: 'รอยยิ้มกุมาร',    icon: '😊', desc: 'ฝุ่นจาก Loot +60%' },
-  { id: 'poison_debuff', name: 'พิษกาลกิณี',      icon: '🌑', desc: 'ชนะ Combat ทุกครั้ง + Corruption ลด 2' },
-  { id: 'exp_boost',     name: 'บทเรียนสนาม',      icon: '📚', desc: 'EXP ที่ได้รับ +40%' },
+  { id: 'poison_debuff', name: 'พิษกาลกิณี',      icon: '🌑', desc: 'ชนะ Combat ทุกครั้ง + Corruption ลด 2', chapterReq: 3 },
+  { id: 'exp_boost',     name: 'บทเรียนสนาม',      icon: '📚', desc: 'EXP ที่ได้รับ +40%', chapterReq: 2 },
   { id: 'dodge_hazard',  name: 'ตราคุ้มครอง',      icon: '📜', desc: 'หลีกเลี่ยง Hazard ถัดไป 1 ครั้ง' },
   { id: 'bond_warmth',   name: 'ไออุ่นผีน้อย',     icon: '🤝', desc: 'Bond ที่ได้รับจาก Adventure +5' },
 ];
@@ -54,12 +54,15 @@ const COMBAT_TEXTS: Record<string, string[]> = {
 const LOOT_TEXTS   = ['พบหีบศพเก่า', 'เจอของหายในพงหญ้า', 'ขุดเจอยันต์ฝังดิน', 'ผีนำทางหาสมบัติ', 'แสงวิบวับนำทาง'];
 const HAZARD_TEXTS = ['เหยียบตะปูโลงศพ', 'ถูกสาปอาถรรพ์', 'ลมเสียงผีโห่', 'กับดักดึงดูดวิญญาณ'];
 
-function pickBoons(n: number, exclude: string[]): BoonDef[] {
-  return [...ALL_BOONS].filter(b => !exclude.includes(b.id)).sort(() => Math.random() - 0.5).slice(0, n);
+function pickBoons(n: number, exclude: string[], chapter: number): BoonDef[] {
+  return [...ALL_BOONS]
+    .filter(b => !exclude.includes(b.id) && (!b.chapterReq || chapter >= b.chapterReq))
+    .sort(() => Math.random() - 0.5).slice(0, n);
 }
 
 // ─── Event roller ─────────────────────────────────────────────────────────────
-function rollStep(s: Session, zoneId: string, teamAvgLv: number): {
+// chapter เปิดพรใหม่ตามด่านเนื้อเรื่อง, corruption≥50 ทำให้ Hazard โหดขึ้น (corruption spiral)
+function rollStep(s: Session, zoneId: string, teamAvgLv: number, chapter: number, corruption: number): {
   delta: Partial<Session>; lines: LogLine[]; boonCards: BoonDef[]
 } {
   const r = Math.random();
@@ -111,7 +114,7 @@ function rollStep(s: Session, zoneId: string, teamAvgLv: number): {
   } else if (r < 0.90) {
     // ── BOON ────────────────────────────────────────────────
     lines.push({ text: '✨ พรศักดิ์สิทธิ์ปรากฏ! หยุดพักเพื่อเลือก...', color: '#a78bfa' });
-    boonCards = pickBoons(3, s.activeBoons);
+    boonCards = pickBoons(3, s.activeBoons, chapter);
     delta = { phase: 'boon' };
 
   } else {
@@ -120,10 +123,15 @@ function rollStep(s: Session, zoneId: string, teamAvgLv: number): {
       lines.push({ text: '📜 ตราคุ้มครองปัดป้องภัย! รอดปลอดภัย ✓', color: '#94a3b8' });
       delta = { activeBoons: s.activeBoons.filter(b => b !== 'dodge_hazard') };
     } else {
+      const corrupted = corruption >= 50;
       const txt  = HAZARD_TEXTS[Math.floor(Math.random() * HAZARD_TEXTS.length)];
-      const hp2  = Math.floor(8 + Math.random() * 12);
-      lines.push({ text: `⚠️  ${txt}! HP -${hp2}%  ☠️ +3`, color: '#f97316' });
-      delta = { hpPct: Math.max(0, s.hpPct - hp2), corruptionGain: s.corruptionGain + 3 };
+      const hp2  = Math.floor((corrupted ? 12 : 8) + Math.random() * (corrupted ? 16 : 12));
+      const corrTick = corrupted ? 5 : 3;
+      lines.push({
+        text: `⚠️  ${txt}! HP -${hp2}%  ☠️ +${corrTick}${corrupted ? ' (ความมืดในตัวดึงดูดภัยร้ายแรงขึ้น)' : ''}`,
+        color: '#f97316',
+      });
+      delta = { hpPct: Math.max(0, s.hpPct - hp2), corruptionGain: s.corruptionGain + corrTick };
     }
   }
 
@@ -143,6 +151,7 @@ export default function Adventure() {
   const { save, team, applyAdventureChoice, addBattleRewards } = useGameStore();
   const zone     = getZoneDef(save?.zone_id ?? 'zone_01');
   const corruption = save?.corruption_score ?? 0;
+  const chapter     = save?.chapter ?? 1;
 
   const [session,     setSession]     = useState<Session | null>(null);
   const [boonOptions, setBoonOptions] = useState<BoonDef[]>([]);
@@ -194,7 +203,7 @@ export default function Adventure() {
     const s = sessionRef.current;
     if (!s || s.phase !== 'walking') return;
 
-    const { delta, lines, boonCards } = rollStep(s, zone.id, teamAvgLv);
+    const { delta, lines, boonCards } = rollStep(s, zone.id, teamAvgLv, chapter, corruption);
     const newStep  = s.step + 1;
     const newLog   = [...s.log, ...lines].slice(-30);
 
@@ -221,7 +230,7 @@ export default function Adventure() {
     if (boonCards.length > 0) setBoonOptions(boonCards);
     if (nextPhase !== 'walking') clearInterval(tickRef.current!);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [zone.id, teamAvgLv]);
+  }, [zone.id, teamAvgLv, chapter, corruption]);
 
   function startAdventure() {
     if (tickRef.current) clearInterval(tickRef.current);

@@ -58,12 +58,25 @@ const ENDINGS: Ending[] = [
 ];
 
 export default function CorruptionEnding() {
-  const { save, player } = useGameStore();
+  const { save, player, ghosts, submitArenaScore } = useGameStore();
   const [selected, setSelected] = useState<EndingType | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
   const corruption = save?.corruption_score ?? 0;
   const currentEnding = ENDINGS.reduce((best, e) =>
     corruption >= e.corruptionReq ? e : best, ENDINGS[0]);
+
+  // chapter ถ่วงน้ำหนักสุด (ความก้าวหน้าเนื้อเรื่อง) + bond เฉลี่ย + จำนวนผีที่เก็บได้ — สเกลใกล้เคียง Arena score (avgLv*50+dust*2)
+  const avgBond = ghosts.length > 0 ? Math.round(ghosts.reduce((s, g) => s + g.bond, 0) / ghosts.length) : 0;
+  const endingScore = (save?.chapter ?? 1) * 100 + avgBond * 5 + ghosts.length * 20;
+
+  async function handleSubmit() {
+    setSubmitting(true);
+    await submitArenaScore(endingScore);
+    setSubmitting(false);
+    setSubmitted(true);
+  }
 
 
   return (
@@ -198,12 +211,16 @@ export default function CorruptionEnding() {
         {/* Submit score button */}
         {corruption >= 30 && (
           <div className="card" style={{ textAlign: 'center' }}>
-            <div style={{ fontWeight: 700, marginBottom: 4 }}>ส่ง Score</div>
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>ส่ง Score: {endingScore.toLocaleString()}</div>
             <div className="text-muted" style={{ fontSize: 12, marginBottom: 12 }}>
-              ส่ง Leaderboard ด้วยตอนจบ "{currentEnding.title}"
+              ส่ง Leaderboard ด้วยตอนจบ "{currentEnding.title}" — ระบบเก็บคะแนนสูงสุดให้อัตโนมัติ
             </div>
-            <button className="btn btn-gold btn-full">
-              🏆 ส่งคะแนน ({player?.username ?? '—'})
+            <button
+              className="btn btn-gold btn-full"
+              disabled={submitting || submitted}
+              onClick={handleSubmit}
+            >
+              {submitted ? '✅ ส่งแล้ว' : submitting ? 'กำลังส่ง...' : `🏆 ส่งคะแนน (${player?.username ?? '—'})`}
             </button>
           </div>
         )}

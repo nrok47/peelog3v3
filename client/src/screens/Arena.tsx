@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
-import { LeaderboardService } from '../db/supabase';
+import { LeaderboardService, GuildService } from '../db/supabase';
+import { CURRENT_SEASON, getSeasonDaysLeft } from '../lib/season';
+import type { Guild } from '../types';
 import { GHOST_REG } from '../data/ghosts';
 import Chibi from '../components/Chibi';
 import ScreenHeader from '../components/ScreenHeader';
@@ -20,7 +22,7 @@ function getRank(score: number) {
 
 export default function Arena() {
   const navigate = useNavigate();
-  const { ghosts, team, player, saveDefenseTeam } = useGameStore();
+  const { ghosts, team, player, myGuild, saveDefenseTeam } = useGameStore();
 
   const [board, setBoard]               = useState<{ username: string; score: number; ending: string }[]>([]);
   const [myBestScore, setMyBestScore]   = useState<number | null>(null);
@@ -28,6 +30,10 @@ export default function Arena() {
   const [boardLoading, setBoardLoading] = useState(true);
   const [savingDefense, setSavingDefense] = useState(false);
   const [defMsg, setDefMsg] = useState('');
+
+  const [boardMode, setBoardMode] = useState<'player' | 'guild'>('player');
+  const [guildBoard, setGuildBoard] = useState<{ guild: Guild; totalScore: number; memberCount: number }[]>([]);
+  const [guildBoardLoading, setGuildBoardLoading] = useState(false);
 
   useEffect(() => {
     setBoardLoading(true);
@@ -45,6 +51,15 @@ export default function Arena() {
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (boardMode !== 'guild') return;
+    setGuildBoardLoading(true);
+    GuildService.getGuildLeaderboard().then(data => {
+      setGuildBoard(data.slice(0, 10));
+      setGuildBoardLoading(false);
+    });
+  }, [boardMode]);
 
   const avgLevel = team.length > 0
     ? Math.round(team.reduce((s, g) => s + g.level, 0) / team.length)
@@ -144,6 +159,21 @@ export default function Arena() {
           </button>
         </div>
 
+        {/* Guild quick-link */}
+        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: 12 }}
+          onClick={() => navigate('/guild')} role="button">
+          <div style={{ fontSize: 22 }}>🛡️</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 700, fontSize: 13 }}>
+              {myGuild ? `[${myGuild.tag}] ${myGuild.name}` : 'ยังไม่มีกิลด์'}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+              {myGuild ? 'ดูสมาชิก / ออกจากกิลด์' : 'สร้างหรือเข้าร่วมกิลด์'}
+            </div>
+          </div>
+          <span style={{ color: 'var(--text-muted)' }}>›</span>
+        </div>
+
         {/* Challenge button */}
         <button
           type="button"
@@ -158,52 +188,108 @@ export default function Arena() {
         {/* Leaderboard */}
         <div>
           <div className="section-hd">
-            <span className="section-title">🏅 อันดับสัปดาห์นี้</span>
-            <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Season 2026-S1</span>
+            <span className="section-title">🏅 อันดับ</span>
+            <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+              Season {CURRENT_SEASON} · เหลือ {getSeasonDaysLeft()} วัน
+            </span>
           </div>
-          {boardLoading ? (
-            <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '16px 0', fontSize: 13 }}>
-              กำลังโหลด...
-            </div>
-          ) : board.length === 0 ? (
-            <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '16px 0', fontSize: 13 }}>
-              ยังไม่มีข้อมูล — เป็นคนแรกที่ลงสนาม!
-            </div>
+
+          <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+            <button type="button"
+              className={`btn btn-sm ${boardMode === 'player' ? 'btn-gold' : 'btn-outline'}`}
+              onClick={() => setBoardMode('player')}>👤 ผู้เล่น</button>
+            <button type="button"
+              className={`btn btn-sm ${boardMode === 'guild' ? 'btn-gold' : 'btn-outline'}`}
+              onClick={() => setBoardMode('guild')}>🛡️ กิลด์</button>
+          </div>
+
+          {boardMode === 'player' ? (
+            boardLoading ? (
+              <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '16px 0', fontSize: 13 }}>
+                กำลังโหลด...
+              </div>
+            ) : board.length === 0 ? (
+              <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '16px 0', fontSize: 13 }}>
+                ยังไม่มีข้อมูล — เป็นคนแรกที่ลงสนาม!
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {board.map((r, i) => {
+                  const rt = getRank(r.score);
+                  const isMe = r.username === player?.username;
+                  return (
+                    <div key={i} className="card" style={{
+                      display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px',
+                      border: isMe ? `1.5px solid ${rt.color}60` : undefined,
+                      background: isMe ? `${rt.color}10` : undefined,
+                    }}>
+                      <div style={{ fontSize: 18, width: 28, textAlign: 'center', fontFamily: 'JetBrains Mono, monospace', color: 'var(--text-muted)', fontWeight: 700 }}>
+                        {i + 1}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {r.username}
+                          {isMe && <span style={{ fontSize: 10, background: 'var(--gold)', color: '#000', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>YOU</span>}
+                        </div>
+                        <div style={{ fontSize: 10, color: rt.color, marginTop: 1 }}>
+                          {rt.icon} {rt.tier} {ENDING_LABEL[r.ending] ?? ''}
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{
+                          fontFamily: 'JetBrains Mono, monospace',
+                          fontWeight: 700, color: rt.color, fontSize: 15,
+                        }}>
+                          {r.score.toLocaleString()}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {board.map((r, i) => {
-                const rt = getRank(r.score);
-                const isMe = r.username === player?.username;
-                return (
-                  <div key={i} className="card" style={{
-                    display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px',
-                    border: isMe ? `1.5px solid ${rt.color}60` : undefined,
-                    background: isMe ? `${rt.color}10` : undefined,
-                  }}>
-                    <div style={{ fontSize: 18, width: 28, textAlign: 'center', fontFamily: 'JetBrains Mono, monospace', color: 'var(--text-muted)', fontWeight: 700 }}>
-                      {i + 1}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
-                        {r.username}
-                        {isMe && <span style={{ fontSize: 10, background: 'var(--gold)', color: '#000', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>YOU</span>}
+            guildBoardLoading ? (
+              <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '16px 0', fontSize: 13 }}>
+                กำลังโหลด...
+              </div>
+            ) : guildBoard.length === 0 ? (
+              <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '16px 0', fontSize: 13 }}>
+                ยังไม่มีกิลด์ — เป็นคนแรกที่สร้างเลย!
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {guildBoard.map((r, i) => {
+                  const isMine = myGuild?.id === r.guild.id;
+                  return (
+                    <div key={r.guild.id} className="card" style={{
+                      display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px',
+                      border: isMine ? '1.5px solid #f5c51860' : undefined,
+                      background: isMine ? '#f5c51810' : undefined,
+                    }}>
+                      <div style={{ fontSize: 18, width: 28, textAlign: 'center', fontFamily: 'JetBrains Mono, monospace', color: 'var(--text-muted)', fontWeight: 700 }}>
+                        {i + 1}
                       </div>
-                      <div style={{ fontSize: 10, color: rt.color, marginTop: 1 }}>
-                        {rt.icon} {rt.tier} {ENDING_LABEL[r.ending] ?? ''}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: 13 }}>
+                          [{r.guild.tag}] {r.guild.name}
+                          {isMine && <span style={{ fontSize: 10, background: 'var(--gold)', color: '#000', padding: '1px 5px', borderRadius: 4, fontWeight: 700, marginLeft: 6 }}>YOU</span>}
+                        </div>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>
+                          {r.memberCount} สมาชิก
+                        </div>
                       </div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
                       <div style={{
                         fontFamily: 'JetBrains Mono, monospace',
-                        fontWeight: 700, color: rt.color, fontSize: 15,
+                        fontWeight: 700, color: 'var(--gold)', fontSize: 15,
                       }}>
-                        {r.score.toLocaleString()}
+                        {r.totalScore.toLocaleString()}
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )
           )}
         </div>
 
