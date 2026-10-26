@@ -576,6 +576,16 @@ export default function Battle() {
     if (phase !== 'battle') return;
 
     function loop(ts: number) {
+      try {
+        tick(ts);
+      } catch (err) {
+        console.error('[BattleLoop] crashed on a frame — continuing anyway:', err);
+        pushLog(`⚠️ เกิดปัญหาระหว่างสู้ (${err instanceof Error ? err.message : String(err)}) — ลองกด "ถอย" แล้วเข้าใหม่ถ้าค้าง`, 'info');
+      }
+      rafRef.current = requestAnimationFrame(loop);
+    }
+
+    function tick(ts: number) {
       if (lastTsRef.current === null) lastTsRef.current = ts;
       const dt = Math.min(80, ts - lastTsRef.current) * battleSpeed;
       lastTsRef.current = ts;
@@ -696,8 +706,6 @@ export default function Battle() {
         setBattlePhase(battlePhaseRef.current);
       }
       setPhaseMsLeft(Math.max(0, phaseMsLeftRef.current));
-
-      rafRef.current = requestAnimationFrame(loop);
     }
 
     rafRef.current = requestAnimationFrame(loop);
